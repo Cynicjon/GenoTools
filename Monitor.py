@@ -8,6 +8,7 @@ from sys import argv
 import configparser
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 try:
+
     import Export
     from watchdog import events, observers
     from colorama import Fore, Style, init as colorama_init
@@ -15,21 +16,13 @@ try:
     from PIL import ImageGrab
     from io import BytesIO
     import win32clipboard
+    import msvcrt
 except ModuleNotFoundError:
     input("Please install the requirements! \nPress Enter to exit.")
     quit()
 
-    # TODO: Conditional formatting sometimes isn't inserted into the first sheet of a multi export
-    #       Adjust the scale to fit exactly 2 rows. - Done, Needs testing
-    #       Occasionally get numbers formatted as text error - if v large numbers present
-    #       Update Help text with egel instructions
-
-    # TODO: Upload to GitHub
-    #       Push Egel update
-
 
 class Counter(object):
-
     def __init__(self, machine=''):
         self._count = 0
         self._show = True
@@ -74,8 +67,6 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     q_counter = Counter(machine=qiaxcel_str)
     _auto_export = True
     _user_only = False
-    _multi_export = False
-    _to_file = ''
     user = os.getlogin()
 
     """
@@ -86,7 +77,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     event.is_directory
         True | False
     event.src_path
-        path/to/observed/file   
+        path/to/observed/file
     """
 
     def on_modified(self, event):
@@ -104,21 +95,16 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         if '.xdrx' in event.src_path and event.src_path not in self.recent_events:  # .xdrx file we haven't seen
             with q_lock:
                 self.q_counter.count = self.notif(event, self.q_counter.count)
-        if '.txt' in event.src_path and self.user in event.src_path \
+        if '.txt' in event.src_path and self.user in event.src_path\
                 and "Export" in event.src_path and self._auto_export:
             time.sleep(0.3)       # wait here to allow file to be fully written # increase if timeout happens a lot
             try:
-                file_out = Export.auto_to_xl(event.src_path, main_file=self._to_file)
+                export.new(event.src_path)
             except OSError:     # if team drive is being slow, wait longer.
                 time.sleep(4)
-                file_out = Export.auto_to_xl(event.src_path, main_file=self._to_file)
-            if self._multi_export and self.to_file == '':
-                self._to_file = file_out
-            if not self._multi_export:
-                try:
-                    os.startfile(file_out)
-                except TypeError:   # If the txt file is bad, export.py returns a NoneType, which causes this exception
-                    pass
+                export.new(event.src_path)
+            except ValueError as e:  # When the exported file is bad
+                print(e)
 
     def notif(self, event, x_counter):
         """Prints a notification about the event to console. May be normal or distinguished.
@@ -149,22 +135,6 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     def auto_export(self):
         self._auto_export = not self._auto_export
         print('Auto export processing ON') if self._auto_export else print('Auto export processing OFF')
-
-    def multi_export(self):
-        self._multi_export = not self._multi_export
-        if not self._multi_export and self._to_file:
-            os.startfile(self._to_file)  # Try/except shouldn't be needed here.
-            print('Multi Export processing complete: ' + os.path.split(self._to_file)[1])
-            self._to_file = ''
-        print('Multi export processing ON') if self._multi_export else print('Multi export processing OFF')
-
-    @property
-    def to_file(self):
-        return self._to_file
-
-    @to_file.setter  # Setter not needed since no logic??
-    def to_file(self, path):
-        self._to_file = path
 
     def user_only(self):
         self._user_only = not self._user_only
@@ -200,7 +170,6 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
 
 class Egel(object):
-
     _original = ''
 
     def grab(self):
@@ -208,14 +177,14 @@ class Egel(object):
         assert (new.size[1] in {1575, 788, 504, 394})
         self._original = new
 
-    def egel(self):
+    def get(self):
         self.send_to_clipboard(self.crop(crop_type='standard'))
 
-    def small_egel(self):
+    def get_small(self):
         # send both scale and egel to clipboard, if using 'Office Clipboard', may paste both from clipboard history.
         self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
 
-    def scale(self):
+    def get_scale(self):
         self.send_to_clipboard(self.crop(crop_type='scale'))
 
     def crop(self, crop_type='standard'):
@@ -252,13 +221,12 @@ class Egel(object):
 
 
 class ClipboardWatcher(Thread):
-    def __init__(self, test, task):
+    def __init__(self):
         super(ClipboardWatcher, self).__init__()
-        self._test = test
-        self._task = task
         self._wait = 2.
         self._paused = False
         self._stopping = False
+        self.image = Egel()
 
     def run(self):
         print('Clipboard watcher starting...')
@@ -268,8 +236,8 @@ class ClipboardWatcher(Thread):
             if not tmp_value == recent_value and not self._paused:  # if the clipboard has changed
                 recent_value = tmp_value
                 try:
-                    self._test()
-                    self._task()
+                    self.image.grab()
+                    self.image.get()
                 except AttributeError:
                     pass    # given when clipboard object is not an image. Ignore
                 except AssertionError:
@@ -290,49 +258,55 @@ class ClipboardWatcher(Thread):
         self._stopping = True
 
 
-def get_input():
-    inp = input('')
-    if not inp:                 # if blank input, read clipboard.
-        inp = clipboard.clipboard_get()
-    inp = os.path.normpath(inp.strip('\'"'))
-    inp = inp.strip()
-    return inp
+class InputLoop(Thread):
+    def __init__(self):
+        super(InputLoop, self).__init__()
+        self._stopping = False
+        self.daemon = True
+        self.instructions = {
+                             labhandler.user_only: ['mine'],
+                             labhandler.show_all: ['all'],
+                             labhandler.auto_export: ['auto'],
+                             export.multi_toggle: ['multi', 'mutli'],
+                             export.last_file: ['last', 'prev', 'previous', 'last file', 'lastfile'],
+                             export.to_file: ['to file', 'tofile', 'file'],
+                             egel_watcher.toggle: ['egels', 'images', 'clip'],
+                             egel_watcher.image.get_scale: ['scale'],
+                             egel_watcher.image.get: ['egel'],
+                             egel_watcher.image.get_small: ['small'],
+                             self.startup: ['install', 'setup'],
+                             self.startup_remove: ['delete', 'uninstall'],
+                             self.stop: ['quit', 'exit', 'QQ', 'quti'],
+                             self.print_help: ['help', 'hlep']
+                             }
 
-
-def input_loop():  # TODO: finish this. Add option to turn off file start.
-    """A loop that asks user for input. Responds to q (Qiaxcel), v (Viia7) and a single number or some combination.
-    Any digit after the first is ignored. e.g: q, q5, v4, qv3. q54 == q5.
-    no number will toggle notify all, a number will notify after n events."""
-    instructions = {'mine': labhandler.user_only,
-                    'all': labhandler.show_all,
-                    'auto': labhandler.auto_export,
-                    'multi': labhandler.multi_export,
-                    'to file': to_file, 'tofile': to_file, 'file': to_file,
-                    'egels': egel_watcher.toggle,
-                    'scale': egel.scale, 'egel': egel.egel, 'small': egel.small_egel,
-                    'install': startup, 'setup': startup, 'add': startup,
-                    'remove': startup_remove, 'delete': startup_remove, 'uninstall': startup_remove,
-                    'quit': quit_script, 'exit': quit_script, 'QQ': quit_script,
-                    'help': print_help
-                    }
-    try:
+    def run(self):
         print('Running...\nEnter a command or type help')
-        while True:
-            inp = get_input()
+        while not self._stopping:
+            inp = self.get_input()
             if os.path.isfile(inp):
                 try:
-                    os.startfile(Export.auto_to_xl(inp, main_file=labhandler.to_file))
+                    export.new(inp)
                 except TypeError:  # If the txt file is bad, export.py returns a NoneType, which causes this exception
                     pass
+                except ValueError as e:
+                    print(e)
             else:
                 inp = inp.lower()
-                if inp in instructions:
-                    instructions[inp]()
+
+                cont = False
+                for key in self.instructions:
+                    if inp in self.instructions[key]:
+                        key()
+                        cont = True
+                        break
+                if cont:
                     continue
+
                 for char in inp:
-                    if char.isdigit():      # if a digit is in input, set count = that digit and break.
+                    if char.isdigit():  # if a digit is in input, set count = that digit and break.
                         count = int(char)
-                        break               # break out of loop after first digit.
+                        break  # break out of loop after first digit.
                 else:
                     count = 0
                 if 'q' in inp:
@@ -340,7 +314,7 @@ def input_loop():  # TODO: finish this. Add option to turn off file start.
                         labhandler.q_counter.show = ''
                         print(labhandler.q_counter.show)
                         continue
-                    with q_lock:            # lock to make referencing variable shared between threads safe.
+                    with q_lock:  # lock to make referencing variable shared between threads safe.
                         labhandler.q_counter.count = count
                         print(labhandler.q_counter.notify_setting)
                 if 'v' in inp:
@@ -351,182 +325,180 @@ def input_loop():  # TODO: finish this. Add option to turn off file start.
                     with v_lock:
                         labhandler.v_counter.count = count
                         print(labhandler.v_counter.notify_setting)
-    except EOFError:                        # This error is given when exiting script only. Ignore.
-        pass
+
+    @staticmethod
+    def get_input():
+        inp = input('')
+        if not inp:  # if blank input, read clipboard.
+            inp = clipboard.clipboard_get()
+        inp = os.path.normpath(inp.strip('\'"'))
+        inp = inp.strip()
+        return inp
+
+    @staticmethod
+    def print_help():
+        # todo move this to readme file and print that
+        print('Lab Helper - ver 31.05.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
+              'and auto-processes Viia7 export files and Qiaxcel images.\n'
+              'Files with your username will generate a distinguished notification.\n'
+              'Commands may be given to notify you on other events, '
+              'e.g. All runs, only your runs, or in n runs time.\n')
+        print('Commands'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('Press Enter to paste file path, or enter a command\n')
+        print('Notifications'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('Q or V - no number   : Toggle distinguished notifications for all events')
+        print('Q or V - with number : Distinguished notification after n events.')
+        print('Q or V + "hide"      : Toggle hide Qiaxcel or Viia7 events ')
+        print('Mine                 : Display your events only.')
+        print('All                  : Display all events.')
+        print('Auto Processing'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('Auto                 : Toggle auto-processing of export files')
+        print('Multi                : Start/Finish Multi export mode.')
+        print('ToFile               : Export to a pre-existing file (paste the path)')
+        print('Last                 : Export to the previously exported file')
+        print('Images               : Toggle auto-processing of Qiaxcel images')
+        print(''.ljust(45, '-'))
+        print('Install      Setup   : Start program on Windows Startup')
+        print('Uninstall    Delete  : Remove from Windows Startup')
+        print('Quit         Exit    : Exit the program')
+        print(''.ljust(45, '-'))
+
+    @staticmethod
+    def startup():
+        print("Installing to Startup...")
+        startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\")
+        name = "Lab Helper.cmd"
+        with open(startup_path + name, "w+") as f:
+            f.write("@echo off\n")
+            f.write("cls\n")
+            if '.py' in argv[0]:
+                f.write("start /MIN python " + argv[0])
+            else:
+                f.write("start /MIN " + argv[0])
+        print("Done!")
+
+    @staticmethod
+    def startup_remove():
+        print('Removing from Startup...')
+        startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"
+                                          "\\Startup\\Lab Helper.cmd")
+        try:
+            os.remove(startup_file)
+            print("Removed.")
+        except FileNotFoundError:
+            print('File not found!')
+
+    def stop(self):
+        self._stopping = True
+        observer.stop()
 
 
-def to_file():
-    labhandler.multi_export()
-    print('Enter a target file (.xlsx) or type stop to cancel')
-    while True:
-        inp = get_input()
-        if os.path.isfile(inp) and inp[-5:] == '.xlsx':
-            labhandler.to_file = inp
-            break
-        if inp.lower() == 'stop':
-            labhandler.multi_export()
-            break
-        else:
-            print('That isn\'t an excel file path!')
-    if labhandler.to_file:
-        print('Thanks. You can now export your files, or paste the file path here.')
+class StatusCheck(object):
+    def __init__(self):
+        self.date = time.strftime("%b %Y", time.localtime())
 
+        self.qiaxcel_path = config['File paths']['QIAxcel']
+        self.experiment_path = self.get_path("Experiments")  # Path to current month
+        self.export_path = self.get_path("Export")
+        self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month
+        self.export_path_last = self.get_path("Export", last_month=True)
 
-def quit_script():
-    print('Exiting program...')
-    observer.stop()
+        self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)
+        self.experiment_watch_curr = observer.schedule(labhandler, path=self.experiment_path)
+        self.export_watch_curr = observer.schedule(labhandler, path=self.export_path)
+        self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last)\
+            if self.experiment_path_last is not None else False
+        self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
+            if self.export_path_last is not None else False
 
+    def update_month(self):
+        self.date = time.strftime("%b %Y", time.localtime())  # Update month
+        print('The month has changed to ' + self.date)
+        self.experiment_path = self.get_path("Experiments")  # Get new path
+        self.export_path = self.get_path("Export")
+        if self.experiment_watch_last:
+            observer.unschedule(self.experiment_watch_last)  # Unschedule last month watch
+        if self.export_watch_last:
+            observer.unschedule(self.export_watch_last)
+        self.experiment_watch_last = self.experiment_watch_curr  # Make current month watch last month
+        self.export_watch_last = self.export_watch_curr
+        self.experiment_watch_curr = observer.schedule(labhandler, self.experiment_path)  # Schedule new current month
+        self.export_watch_curr = observer.schedule(labhandler, self.export_path)
 
-def print_help():
-    print('Lab Helper - ver 27.03.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
-    print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
-          'and auto-processes Viia7 export files and Qiaxcel images.\n'
-          'Files with your username will generate a distinguished notification.\n'
-          'Commands may be given to notify you on other events, '
-          'e.g. All runs, only your runs, or in n runs time.\n')
-    print('Commands'.center(45, ' ') + '\n'.ljust(45, '-'))
-    print('Press Enter to paste file path, or enter a command\n')
-    print('Notifications'.center(45, ' ') + '\n'.ljust(45, '-'))
-    print('Q or V - no number   : Toggle distinguished notifications for all events')
-    print('Q or V - with number : Distinguished notification after n events.')
-    print('Q or V + "hide"      : Toggle hide Qiaxcel or Viia7 events ')
-    print('Mine                 : Display your events only.')
-    print('All                  : Display all events.')
-    print('Auto Processing'.center(45, ' ') + '\n'.ljust(45, '-'))
-    print('Auto                 : Toggle auto-processing of export files')
-    print('Multi                : Start/Finish Multi export mode.')
-    print('ToFile               : Export to a pre-existing file (paste the path)')
-    print('Egels                : Toggle auto-processing of Qiaxcel images')
-    print(''.ljust(45, '-'))
-    print('Install      Setup   : Start program on Windows Startup')
-    print('Uninstall    Delete  : Remove from Windows Startup')
-    print('Quit         Exit    : Exit the program')
-    print(''.ljust(45, '-'))
+    @staticmethod
+    def check_update():
+        config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # may have changed.
+        start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
+        end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
+        if start < datetime.now() < end:
+            print('Update in progress until ' + datetime.strftime(end, "%d.%m.%y %H:%M "))
+            print('Closing in 10 seconds...')
+            time.sleep(10)
+            raise KeyboardInterrupt
 
-
-def get_path(folder, last_month=False):
-    makedirs = True
-    date_t = date.today()
-    if last_month:
-        makedirs = False
-        first = date_t.replace(day=1)                     # replace the day with the first of the month.
-        date_t = first - timedelta(days=1)                # subtract one day to get the last day of last month
-    month, year = date_t.strftime('%b %Y').split(' ')
-    path = build_path(month, year, folder)
-    if os.path.isdir(path):
-        return path
-    month_full = date_t.strftime('%B')
-    path2 = build_path(month_full, year, folder)
-    if os.path.isdir(path2):
-        return path2
-    if month == 'Sep':
-        path2 = build_path('Sept', year, folder)
+    def get_path(self, folder, last_month=False):
+        makedirs = True
+        date_t = date.today()
+        if last_month:
+            makedirs = False
+            first = date_t.replace(day=1)                     # replace the day with the first of the month.
+            date_t = first - timedelta(days=1)                # subtract one day to get the last day of last month
+        month, year = date_t.strftime('%b %Y').split(' ')
+        path = self.build_path(month, year, folder)
+        if os.path.isdir(path):
+            return path
+        month_full = date_t.strftime('%B')
+        path2 = self.build_path(month_full, year, folder)
         if os.path.isdir(path2):
             return path2
-    if makedirs:
-        os.makedirs(path, exist_ok=True)
-        return path
-    print("Cant find last month's " + folder + " path")
-    return None
+        if month == 'Sep':
+            path2 = self.build_path('Sept', year, folder)
+            if os.path.isdir(path2):
+                return path2
+        if makedirs:
+            os.makedirs(path, exist_ok=True)
+            return path
+        print("Cant find last month's " + folder + " path")
+        return None
 
-
-def build_path(month, year, folder):
-    if folder == "Experiments":
-        return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Experiments\\' + month + ' ' + year
-    if folder == "Export":
-        return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
-
-
-def startup():
-    print("Installing to Startup...")
-    startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\")
-    name = "Lab Helper.cmd"
-    with open(startup_path + name, "w+") as f:
-        f.write("@echo off\n")
-        f.write("cls\n")
-        if '.py' in argv[0]:
-            f.write("start /MIN python " + argv[0])
-        else:
-            f.write("start /MIN " + argv[0])
-    print("Done!")
-
-
-def startup_remove():
-    print('Removing from Startup...')
-    startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"
-                                      "\\Startup\\Lab Helper.cmd")
-    try:
-        os.remove(startup_file)
-    except FileNotFoundError:
-        pass
-    print("Removed.")
-
-
-def check_update():
-    config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # may have changed.
-    start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
-    end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
-    if start < datetime.now() < end:
-        print('Update in progress until ' + datetime.strftime(end, "%d.%m.%y %H:%M "))
-        print('Closing in 10 seconds...')
-        time.sleep(10)
-        raise KeyboardInterrupt
+    @staticmethod
+    def build_path(month, year, folder):
+        if folder == "Experiments":
+            return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Experiments\\' + month + ' ' + year
+        if folder == "Export":
+            return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
 
 if __name__ == '__main__':
-    colorama_init()            # Init colorama to enable coloured text output via ANSI escape codes on windows console.
-    q_lock = Lock()            # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
+    colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
+    q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
-
-    current_month_year = time.strftime("%b %Y", time.localtime())     # This is checked later to see if month changed.
     config = configparser.ConfigParser()
-    config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # todo encoding utf-8?atm config.ini = ANSI
-    qiaxcel_path = config['File paths']['QIAxcel']
-    viia7_path = get_path("Experiments")                              # Path to current month Viia7 experiments.
-    export_path = get_path("Export")
-    viia7_path_last = get_path("Experiments", last_month=True)        # Path to last month Viia7 experiments.
-    export_path_last = get_path("Export", last_month=True)
+    config.read(
+        os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # todo encoding utf-8?atm config.ini = ANSI
 
-    egel = Egel()
-    egel_watcher = ClipboardWatcher(egel.grab, egel.egel)
+    egel_watcher = ClipboardWatcher()  # Instantiate classes
+    labhandler = LabHandler()
+    export = Export.Export()
+    observer = observers.Observer()
+    in_loop = InputLoop()
+    status = StatusCheck()
 
-    labhandler = LabHandler()                                         # Instantiate Handler
-    observer = observers.Observer()                                   # Instantiate Observer
-    qiaxcel_watch = observer.schedule(labhandler, path=qiaxcel_path)  # Schedule watch locations, and use our Handler.
-    viia7_watch_curr = observer.schedule(labhandler, path=viia7_path)
-    export_watch_curr = observer.schedule(labhandler, path=export_path)
-
-    viia7_watch_last = observer.schedule(labhandler, path=viia7_path_last) if viia7_path_last is not None else False
-    export_watch_last = observer.schedule(labhandler, path=export_path_last)if export_path_last is not None else False
-
-    observer.start()                                                  # Start Observer thread.
+    observer.start()  # Start threads
     egel_watcher.start()
-
-    in_loop = Thread(target=input_loop)
-    in_loop.daemon = True
     in_loop.start()
 
     try:
         while True:  # Check if something has changed
-            if current_month_year != time.strftime("%b %Y", time.localtime()):  # If month has changed.
-                current_month_year = time.strftime("%b %Y", time.localtime())   # Update month
-                print('The month has changed to ' + current_month_year)
-                viia7_path = get_path("Viia7")                                  # Get new  path
-                export_path = get_path("Export")
-                if viia7_watch_last:
-                    observer.unschedule(viia7_watch_last)                       # Unschedule last month watch
-                if export_watch_last:
-                    observer.unschedule(export_watch_last)
-                viia7_watch_last = viia7_watch_curr                             # Make current month watch last month
-                export_watch_last = export_watch_curr
-                viia7_watch_curr = observer.schedule(labhandler, viia7_path)    # Schedule new current month
-                export_watch_curr = observer.schedule(labhandler, export_path)
+            if status.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
+                status.update_month()
             for i in range(600):
                 if not observer.is_alive():
                     raise KeyboardInterrupt
-                check_update()
+                status.check_update()
                 time.sleep(2)
-    except KeyboardInterrupt:                                                   # on keyboard interrupt (Ctrl + C)
-        observer.stop()                                                         # Stop observer + Threads (if alive)
+    except KeyboardInterrupt:  # on keyboard interrupt (Ctrl + C)
+        observer.stop()  # Stop observer + Threads (if alive)
         egel_watcher.stop()
         print('\nbye!')
