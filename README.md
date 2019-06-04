@@ -9,7 +9,7 @@ Files with your username will generate a distinguished notification.
 
 Commands may be given to notify you on other events, e.g. All runs, only your runs, or in n runs time.
 
-####**Commands**                 
+#Commands                 
 
 Press Enter to paste file path, or enter a command
 
