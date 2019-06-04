@@ -9,11 +9,11 @@ Files with your username will generate a distinguished notification.
 
 Commands may be given to notify you on other events, e.g. All runs, only your runs, or in n runs time.
 
-#Commands                 
+#### **Commands**                 
 
 Press Enter to paste file path, or enter a command
 
-####**Notifications**                
+#### **Notifications**                
 `Q` or `V` - no number   : Toggle distinguished notifications for all events
 
 `Q` or `V` - with number : Distinguished notification after n events.
@@ -24,7 +24,7 @@ Press Enter to paste file path, or enter a command
 
 `All`                  : Display all events.
 
-####**Auto Processing**               
+#### **Auto Processing**               
 `Auto`                 : Toggle auto-processing of export files
 
 `Multi`                : Start/Finish Multi export mode (Toggle)
