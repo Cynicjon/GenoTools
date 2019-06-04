@@ -1,0 +1,89 @@
+Changelog for LabHelper project
+
+02.01.19
+    Made slightly faster
+    Cleaned up code significantly - new counter class and input dispatch.
+    Controls are now sorted
+    Export multiple files into one xlsx.
+    Fixed Quit command
+    Fixed crash when last month's folder location cannot be found (Year change)
+
+07.01.2019
+    Export into specified file: Use command 'to file'
+    Split Input sanitising into own function
+    Moved clipboard functionality to Monitor.py from Export.py
+
+09.01.2019
+    Added Try/except block to prevent crash when a bad file is exported - 'results' not ticked.
+    Reduced file write wait time.
+    Added escape \ to regex.
+
+11.01.2019
+    Increased number of identical sheet names possible.
+
+22.01.2019
+    Fixed crash when export file was incorrect (wrong columns)
+    rewrote read_file, now allows ',' as sep, and is more readable.
+    wrote get_sheet_name(). parses file name into smaller sheet names.
+    rewrote method of preventing identical sheet names.
+
+24.01.2019
+    Fixed Print statements when multi processing
+    Cleaned up get_sheet_name(), removed trailing chars on small bar codes.
+
+06.02.2019
+    Pushed update
+
+11.02.2019
+    Added Pillow import to allow exporting directly to e-gels files.
+
+13.02.2019
+    Fixed pasting in file path - now works again
+    Added ability to paste in E-gels images. Returns a cropped and rotated version
+    back to the clipboard. Saves at least 11 clicks per image, the scale is lost however.
+18.02.2019
+    E-gel cropping now works with all the different image dpis from the QIAxcel
+
+26.02.2019
+    Added command 'scale' to get the scale of the last egel image that was processed.
+
+01.03.2019
+    Moved Egels code into its own class
+
+12.03.2019
+    Created class to monitor when egel images are put on clipboard
+    Simplified Egel Class
+
+27.03.2019
+    Updated Help text
+
+04.04.2019
+    Changed Egel toggle command to Images from Egels
+    Build exe ver 04.04.19
+
+05.04.2019
+    Pushed update
+
+    Moved Input loop to its own class, grouped code better, improved exit.
+    Moved Date/ update code to own class.
+
+24.05.2019
+
+    Made Export.py object oriented, Modified Monitor to allow this.
+
+29.05.2019
+
+    Made multi_export into a property
+    Simplified Egel + Clipboard watcher
+
+31.05.2019
+
+    Inverted instructions dict to better allow aliases, added more aliases
+    Added export to last file functionality
+    Moved to_file to Export_class
+    Fixed some bugs with multi export and tofile
+    Cleared up Todo's
+
+03.06.2019
+
+    Fixed bug with multi file not being reset.
