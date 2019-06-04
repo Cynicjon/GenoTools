@@ -8,7 +8,6 @@ from sys import argv
 import configparser
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 try:
-
     import Export
     from watchdog import events, observers
     from colorama import Fore, Style, init as colorama_init
@@ -267,6 +266,7 @@ class InputLoop(Thread):
                              labhandler.user_only: ['mine'],
                              labhandler.show_all: ['all'],
                              labhandler.auto_export: ['auto'],
+                             export.multi_off: ['done', 'stop'],
                              export.multi_toggle: ['multi', 'mutli'],
                              export.last_file: ['last', 'prev', 'previous', 'last file', 'lastfile'],
                              export.to_file: ['to file', 'tofile', 'file'],
@@ -337,8 +337,7 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        # todo move this to readme file and print that
-        print('Lab Helper - ver 31.05.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('Lab Helper - ver 04.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
         print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
               'and auto-processes Viia7 export files and Qiaxcel images.\n'
               'Files with your username will generate a distinguished notification.\n'
@@ -354,8 +353,9 @@ class InputLoop(Thread):
         print('All                  : Display all events.')
         print('Auto Processing'.center(45, ' ') + '\n'.ljust(45, '-'))
         print('Auto                 : Toggle auto-processing of export files')
-        print('Multi                : Start/Finish Multi export mode.')
-        print('ToFile               : Export to a pre-existing file (paste the path)')
+        print('Multi                : Start/Stop Multi export mode (Toggle)')
+        print('Done                 : Stop Multi export mode')
+        print('ToFile               : Export to a pre-existing file (Paste the path)')
         print('Last                 : Export to the previously exported file')
         print('Images               : Toggle auto-processing of Qiaxcel images')
         print(''.ljust(45, '-'))
@@ -475,8 +475,7 @@ if __name__ == '__main__':
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
     config = configparser.ConfigParser()
-    config.read(
-        os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # todo encoding utf-8?atm config.ini = ANSI
+    config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # config.ini = ANSI
 
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
@@ -493,11 +492,11 @@ if __name__ == '__main__':
         while True:  # Check if something has changed
             if status.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
                 status.update_month()
-            for i in range(600):
+            for i in range(300):
                 if not observer.is_alive():
                     raise KeyboardInterrupt
                 status.check_update()
-                time.sleep(2)
+                time.sleep(4)
     except KeyboardInterrupt:  # on keyboard interrupt (Ctrl + C)
         observer.stop()  # Stop observer + Threads (if alive)
         egel_watcher.stop()

@@ -243,6 +243,9 @@ class Export(object):
     def multi_toggle(self):
         self.multi = None
 
+    def multi_off(self):
+        self.multi = False
+
     def last_file(self):
         # self.multi = True
         self.xlsx_file = self._last_file
@@ -358,3 +361,4 @@ class Export(object):
             print("Export processing complete: " + path.split(self.xlsx_file)[1])
             self._last_file = self.xlsx_file
             startfile(self.xlsx_file)
+            self.xlsx_file = None
