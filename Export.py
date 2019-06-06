@@ -96,7 +96,6 @@ class Export(object):
         """
         Loads excel formulas used from a file, calls get_formula_sub to format them and sets the finished formulas
         """
-
         try:
             wb = load_workbook(self.config['File paths']['Formulas'])
         except FileNotFoundError:
@@ -223,6 +222,10 @@ class Export(object):
 
     @property
     def multi(self):
+        """
+        Returns string indicating if Multi export mode is on of off. If multi export is OFF and there is an xlsz file,
+        then multi must have been toggled off recently, and the file is launched etc.
+        """
         if not self._multi_export and self.xlsx_file:
             startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
             print('Multi Export processing complete: ' + path.split(self.xlsx_file)[1])
@@ -232,6 +235,11 @@ class Export(object):
 
     @multi.setter
     def multi(self, value):
+        """
+        Sets _multi_export flag with value, if value is none, toggles _multi_export. Prints multi.
+        :param value:
+        :return:
+        """
         if value is not None:
             if not self._multi_export == value:  # Only change value (and print) if value changes
                 self._multi_export = value
@@ -247,11 +255,13 @@ class Export(object):
         self.multi = False
 
     def last_file(self):
-        # self.multi = True
         self.xlsx_file = self._last_file
         print("Exporting to last exported file.")
 
     def to_file(self):
+        """
+        Allows Input of a specific xlsx file to export to.
+        """
         from Monitor import InputLoop
         print('Enter a target file (.xlsx) or type stop to cancel')
         while True:
@@ -308,7 +318,6 @@ class Export(object):
         Exports to xlsx file and formats it with correct column widths, top row freeze pane and conditional formatting
         based on genotype.
         """
-
         sheet = self.get_sheet_name()
         if not self.xlsx_file:
             self.xlsx_file = path.splitext(self.inp)[0] + '.xlsx'
@@ -329,7 +338,6 @@ class Export(object):
                         sheet = sheet1
                         break
         else:
-            # out = self.xlsx_file
             writer = pd.ExcelWriter(self.xlsx_file, engine='openpyxl')
         self.samples.to_excel(writer, sheet_name=sheet, index=False, freeze_panes=(1, 0))  # Write dataframe to excel
         """Formatting for a pretty output"""

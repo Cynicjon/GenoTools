@@ -87,3 +87,7 @@ Changelog for LabHelper project
 03.06.2019
 
     Fixed bug with multi file not being reset.
+
+04.06.2019
+
+    Edited Readme + Help text
