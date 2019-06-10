@@ -57,17 +57,48 @@ class Counter(object):
             return ''.ljust(19, ' ') + self._machine + ' Notify OFF'
 
 
+class Message(str):
+    def colour(self, colour='bright'):
+        colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
+                   'red': Fore.RED, 'yellow': Fore.YELLOW}
+        return Message(colours[colour] + self + Style.RESET_ALL)
+
+    def timestamp(self, machine='', distinguish=False):
+        pad = 13  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        if machine == 'Viia7':
+            machine = Message(machine).colour('cyan')
+            pad = 22
+        else:
+            machine = Message(machine).colour('magenta')
+            pad = 22
+
+        if distinguish:
+            pref = Message('>>> ').colour('green')
+            pad += 9
+        else:
+            pref = ' -  '
+        if machine:
+            pref = pref + '{}:'.format(machine)
+        ret = Message(self.bright_time() + pref.ljust(pad, ' '))
+        return Message(ret + self)
+
+    @staticmethod
+    def bright_time():
+        """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
+        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).colour('bright')
+
+
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
     patterns = ["*.xdrx", "*.eds", '*.txt']            # Events are only generated for these file types.
-    recent_events = deque('ghi', maxlen=30)            # A queue to prevent duplicate events. 30 is arbitrary.
-    viia7_str = Fore.CYAN + 'Viia7' + Style.RESET_ALL + ':  '       # Colour codes for Viia7.
-    qiaxcel_str = Fore.MAGENTA + 'Qiaxcel' + Style.RESET_ALL + ':'  # Colour codes for Qiaxcel
-    v_counter = Counter(machine=viia7_str)
-    q_counter = Counter(machine=qiaxcel_str)
-    _auto_export = True
-    _user_only = False
-    user = os.getlogin()
 
+    def __init__(self):
+        super(LabHandler, self).__init__()
+        self.recent_events = deque('ghi', maxlen=30)
+        self.v_counter = Counter(machine='Viia7')
+        self.q_counter = Counter(machine='Qiaxcel')
+        self._auto_export = True
+        self._user_only = False
+        self.user = os.getlogin()
     """
     The Observer passes events to the handler, which then calls functions based on the type of event
     Event object properties:
@@ -114,17 +145,27 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         machine, file = self.get_event_info(event)
 
         if os.getlogin() in event.src_path.lower() or x_counter == 1 or x_counter > 9:  # distinguished notif
-            file = Fore.GREEN + file + Style.RESET_ALL      # file name in green
-            message = Fore.GREEN + '>>> {}'.format(machine).ljust(21, ' ') + ' {} has finished!'.format(file)
+            # file = Display.colour_text(file, 'green')
+            # message = Display.colour_text('>>> {}'.format(machine).ljust(21, ' ') + ' {} has finished!'.format(file),
+            #                               'green')
+            # ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
+            # print(Display.bright_time() + message)
+            #
+            file = Message(file).colour('green')
+            message = ' {} has finished!'.format(file)
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
-            print(self.bright_time() + message)
+            print(Message(message).timestamp(machine))
 
         elif not self._user_only:                           # non distinguished notification
-            file = Style.BRIGHT + file + Style.RESET_ALL    # file name in white
-            message = ' -  {}'.format(machine).ljust(21, ' ') + ' {} has finished.'.format(file)
-            if (self.q_counter.show and machine == self.qiaxcel_str) or \
-                    (self.v_counter.show and machine == self.viia7_str):
-                print(self.bright_time() + message)
+            # file = Display.colour_text(file, 'bright')
+            # message = ' -  {}'.format(machine).ljust(21, ' ') + ' {} has finished.'.format(file)
+
+            file = Message(file).colour('bright')
+            message = ' {} has finished.'.format(file)
+            if (self.q_counter.show and machine == 'Qiaxcel') or \
+                    (self.v_counter.show and machine == 'Viia7'):
+                # print(Display.bright_time() + message)
+                print(Message(message).timestamp(machine))
 
         if x_counter == 1:         # If this was the run to notify on, inform that notification is now off.
             print(''.ljust(19, ' ') + machine + ' No longer notifying.')
@@ -133,38 +174,41 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ON') if self._auto_export else print('Auto export processing OFF')
+        print('Auto export processing ' + Message('ON').colour('green')) if self._auto_export\
+            else print('Auto export processing ' + Message('OFF').colour('red'))
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying your events ONLY') if self._user_only else print('Displaying ALL events')
+        print('Displaying ' + Message('YOUR').colour('bright') + ' events only') if self._user_only\
+            else print('Displaying ' + Message('ALL').colour('bright') + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ALL events')
+        print('Displaying ' + Message('ALL').colour('bright') + ' events')
 
-    def get_event_info(self, event):
+    @staticmethod
+    def get_event_info(event):
         """Returns the machine name and file path."""
-        machine = self.viia7_str if event.event_type == 'modified' else self.qiaxcel_str
+        machine = 'Viia7' if event.event_type == 'modified' else 'Qiaxcel'
         file = str(os.path.splitext(event.src_path)[0].split('\\')[-1])  # Get file name
         return machine, file
 
     @staticmethod
-    def bright_time():
-        """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Style.BRIGHT + time.strftime("%d.%m.%y %H:%M ", time.localtime()) + Style.NORMAL
-
-    def is_large_enough(self, path):
+    def is_large_enough(path):
         """Determines if the file given by path is above 1300000 bytes"""
         try:
             return os.stat(path).st_size > 1300000
         except (FileNotFoundError, OSError) as e:
             file = str(os.path.splitext(path)[0].split('\\')[-1])
-            print(Fore.RED, e, Style.RESET_ALL)  # If not, print error, assume True.
-            print(self.bright_time() + ' -  {}'.format(self.viia7_str).ljust(21, ' ') + file + " wasn't saved properly!"
-                  " You'll need to analyse and save the run again from the machine.")
+            print(Message(e).colour('red'))  # If not, print error, assume True.
+            print(Message().timestamp(file + " wasn't saved properly! "
+                                             "You'll need to analyse and save the run again from the machine."))
+
+            # print(Display.bright_time() + ' -  {}'.format(self.viia7_str).ljust(21, ' ') + file
+            #       + " wasn't saved properly! You'll need to analyse and save the run again from the machine.")
+
             return True  # Better to inform than not. I think this happens when .eds isn't saved or is deleted?
 
 
@@ -248,7 +292,7 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher stopped')
+            print('Clipboard watcher' + Message('OFF').colour('red'))
         else:
             self._wait = 2.
             print('Clipboard watcher resumed')
@@ -337,6 +381,7 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
+        # TODO: Add colours?
         print('GenoTools - ver 04.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
         print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
               'and auto-processes Viia7 export files and Qiaxcel images.\n'
@@ -469,6 +514,26 @@ class StatusCheck(object):
         if folder == "Export":
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
+
+# class Display(object):
+#     @staticmethod
+#     def colour_text(text, colour='bright'):
+#         colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
+#                    'red': Fore.RED, 'yellow': Fore.YELLOW}
+#         return colours[colour] + text + Style.RESET_ALL
+#
+#     @staticmethod
+#     def bright_time():
+#         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
+#         return Style.BRIGHT + time.strftime("%d.%m.%y %H:%M ", time.localtime()) + Style.NORMAL
+#
+#
+# class MyStr(str):
+#     @staticmethod
+#     def colour_text(text, colour='bright'):
+#         colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
+#                    'red': Fore.RED, 'yellow': Fore.YELLOW}
+#         return colours[colour] + text + Style.RESET_ALL
 
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
