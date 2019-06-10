@@ -91,3 +91,7 @@ Changelog for LabHelper project
 04.06.2019
 
     Edited Readme + Help text
+
+07.06.2019
+
+    Refactored the colourful message part into a String subclass.

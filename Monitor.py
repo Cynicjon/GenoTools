@@ -58,23 +58,79 @@ class Counter(object):
 
 
 class Message(str):
-    def colour(self, colour='bright'):
-        colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
-                   'red': Fore.RED, 'yellow': Fore.YELLOW}
-        return Message(colours[colour] + self + Style.RESET_ALL)
+    # def colour(self, colour='white'):
+    #     colours = {'white': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
+    #                'red': Fore.RED, 'yellow': Fore.YELLOW, 'grey': Fore.LIGHTBLACK_EX,
+    #                'light_blue': Fore.LIGHTBLUE_EX, 'blue': Fore.BLUE, 'light_green': Fore.LIGHTGREEN_EX,
+    #                'light_red': Fore.LIGHTRED_EX, 'light_cyan': Fore.LIGHTCYAN_EX,
+    #                'light_magenta': Fore.LIGHTMAGENTA_EX
+    #                }
+    #     return Message(colours[colour] + self + Style.RESET_ALL)
+    #
+    @property
+    def white(self):
+        return Message(Style.BRIGHT + self + Style.RESET_ALL)
 
-    def timestamp(self, machine='', distinguish=False):
+    @property
+    def green(self):
+        return Message(Fore.GREEN + self + Style.RESET_ALL)
+
+    @property
+    def cyan(self):
+        return Message(Fore.CYAN + self + Style.RESET_ALL)
+
+    @property
+    def magenta(self):
+        return Message(Fore.MAGENTA + self + Style.RESET_ALL)
+
+    @property
+    def red(self):
+        return Message(Fore.RED + self + Style.RESET_ALL)
+
+    @property
+    def yellow(self):
+        return Message(Fore.YELLOW + self + Style.RESET_ALL)
+
+    @property
+    def grey(self):
+        return Message(Fore.LIGHTBLACK_EX + self + Style.RESET_ALL)
+
+    @property
+    def blue(self):
+        return Message(Fore.BLUE + self + Style.RESET_ALL)
+
+    @property
+    def light_blue(self):
+        return Message(Fore.LIGHTBLUE_EX + self + Style.RESET_ALL)
+
+    @property
+    def light_green(self):
+        return Message(Fore.LIGHTGREEN_EX + self + Style.RESET_ALL)
+
+    @property
+    def light_red(self):
+        return Message(Fore.LIGHTRED_EX + self + Style.RESET_ALL)
+
+    @property
+    def light_cyan(self):
+        return Message(Fore.LIGHTCYAN_EX + self + Style.RESET_ALL)
+
+    @property
+    def light_magenta(self):
+        return Message(Fore.LIGHTMAGENTA_EX + self + Style.RESET_ALL)
+
+    def timestamp(self, machine=None, distinguish=False):
         pad = 13  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
-        if machine == 'Viia7':
-            machine = Message(machine).colour('cyan')
-            pad = 22
-        else:
-            machine = Message(machine).colour('magenta')
-            pad = 22
+        if machine:
+            pad += 9
+            if machine == 'Viia7':
+                machine = Message(machine).cyan
+            else:
+                machine = Message(machine).magenta
 
         if distinguish:
-            pref = Message('>>> ').colour('green')
             pad += 9
+            pref = Message('>>> ').green
         else:
             pref = ' -  '
         if machine:
@@ -85,11 +141,11 @@ class Message(str):
     @staticmethod
     def bright_time():
         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).colour('bright')
+        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white
 
 
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
-    patterns = ["*.xdrx", "*.eds", '*.txt']            # Events are only generated for these file types.
+    patterns = ['*.xdrx', '*.eds', '*.txt']            # Events are only generated for these file types.
 
     def __init__(self):
         super(LabHandler, self).__init__()
@@ -145,26 +201,19 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         machine, file = self.get_event_info(event)
 
         if os.getlogin() in event.src_path.lower() or x_counter == 1 or x_counter > 9:  # distinguished notif
-            # file = Display.colour_text(file, 'green')
-            # message = Display.colour_text('>>> {}'.format(machine).ljust(21, ' ') + ' {} has finished!'.format(file),
-            #                               'green')
-            # ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
-            # print(Display.bright_time() + message)
-            #
-            file = Message(file).colour('green')
+
+            file = Message(file).green
             message = ' {} has finished!'.format(file)
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
             print(Message(message).timestamp(machine))
 
         elif not self._user_only:                           # non distinguished notification
-            # file = Display.colour_text(file, 'bright')
-            # message = ' -  {}'.format(machine).ljust(21, ' ') + ' {} has finished.'.format(file)
 
-            file = Message(file).colour('bright')
+            file = Message(file).white
             message = ' {} has finished.'.format(file)
             if (self.q_counter.show and machine == 'Qiaxcel') or \
                     (self.v_counter.show and machine == 'Viia7'):
-                # print(Display.bright_time() + message)
+
                 print(Message(message).timestamp(machine))
 
         if x_counter == 1:         # If this was the run to notify on, inform that notification is now off.
@@ -174,19 +223,19 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ' + Message('ON').colour('green')) if self._auto_export\
-            else print('Auto export processing ' + Message('OFF').colour('red'))
+        print('Auto export processing ' + Message('ON').green) if self._auto_export\
+            else print('Auto export processing ' + Message('OFF').red)
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying ' + Message('YOUR').colour('bright') + ' events only') if self._user_only\
-            else print('Displaying ' + Message('ALL').colour('bright') + ' events')
+        print('Displaying ' + Message('YOUR').white + ' events only') if self._user_only\
+            else print('Displaying ' + Message('ALL').white + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ' + Message('ALL').colour('bright') + ' events')
+        print('Displaying ' + Message('ALL').white + ' events')
 
     @staticmethod
     def get_event_info(event):
@@ -202,7 +251,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
             return os.stat(path).st_size > 1300000
         except (FileNotFoundError, OSError) as e:
             file = str(os.path.splitext(path)[0].split('\\')[-1])
-            print(Message(e).colour('red'))  # If not, print error, assume True.
+            print(Message(e).red)  # If not, print error, assume True.
             print(Message().timestamp(file + " wasn't saved properly! "
                                              "You'll need to analyse and save the run again from the machine."))
 
@@ -292,7 +341,7 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher' + Message('OFF').colour('red'))
+            print('Clipboard watcher' + Message('OFF').red)
         else:
             self._wait = 2.
             print('Clipboard watcher resumed')
@@ -514,26 +563,6 @@ class StatusCheck(object):
         if folder == "Export":
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
-
-# class Display(object):
-#     @staticmethod
-#     def colour_text(text, colour='bright'):
-#         colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
-#                    'red': Fore.RED, 'yellow': Fore.YELLOW}
-#         return colours[colour] + text + Style.RESET_ALL
-#
-#     @staticmethod
-#     def bright_time():
-#         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-#         return Style.BRIGHT + time.strftime("%d.%m.%y %H:%M ", time.localtime()) + Style.NORMAL
-#
-#
-# class MyStr(str):
-#     @staticmethod
-#     def colour_text(text, colour='bright'):
-#         colours = {'bright': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
-#                    'red': Fore.RED, 'yellow': Fore.YELLOW}
-#         return colours[colour] + text + Style.RESET_ALL
 
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.

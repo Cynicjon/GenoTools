@@ -234,8 +234,8 @@ class Export(object):
             print('Multi Export processing complete: ' + path.split(self.xlsx_file)[1])
             self._last_file = self.xlsx_file
             self.xlsx_file = None
-        return 'Multi export processing ' + Message('ON').colour('green') if self._multi_export \
-            else 'Multi export processing ' + Message('OFF').colour('red')
+        return 'Multi export processing ' + Message('ON').green if self._multi_export \
+            else 'Multi export processing ' + Message('OFF').red
 
     @multi.setter
     def multi(self, value):
