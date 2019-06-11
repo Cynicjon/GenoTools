@@ -58,79 +58,57 @@ class Counter(object):
 
 
 class Message(str):
-    # def colour(self, colour='white'):
-    #     colours = {'white': Style.BRIGHT, 'green': Fore.GREEN, 'cyan': Fore.CYAN, 'magenta': Fore.MAGENTA,
-    #                'red': Fore.RED, 'yellow': Fore.YELLOW, 'grey': Fore.LIGHTBLACK_EX,
-    #                'light_blue': Fore.LIGHTBLUE_EX, 'blue': Fore.BLUE, 'light_green': Fore.LIGHTGREEN_EX,
-    #                'light_red': Fore.LIGHTRED_EX, 'light_cyan': Fore.LIGHTCYAN_EX,
-    #                'light_magenta': Fore.LIGHTMAGENTA_EX
-    #                }
-    #     return Message(colours[colour] + self + Style.RESET_ALL)
-    #
-    @property
     def white(self):
         return Message(Style.BRIGHT + self + Style.RESET_ALL)
 
-    @property
     def green(self):
         return Message(Fore.GREEN + self + Style.RESET_ALL)
 
-    @property
     def cyan(self):
         return Message(Fore.CYAN + self + Style.RESET_ALL)
 
-    @property
     def magenta(self):
         return Message(Fore.MAGENTA + self + Style.RESET_ALL)
 
-    @property
     def red(self):
         return Message(Fore.RED + self + Style.RESET_ALL)
 
-    @property
     def yellow(self):
         return Message(Fore.YELLOW + self + Style.RESET_ALL)
 
-    @property
     def grey(self):
         return Message(Fore.LIGHTBLACK_EX + self + Style.RESET_ALL)
 
-    @property
     def blue(self):
         return Message(Fore.BLUE + self + Style.RESET_ALL)
 
-    @property
     def light_blue(self):
         return Message(Fore.LIGHTBLUE_EX + self + Style.RESET_ALL)
 
-    @property
     def light_green(self):
         return Message(Fore.LIGHTGREEN_EX + self + Style.RESET_ALL)
 
-    @property
     def light_red(self):
         return Message(Fore.LIGHTRED_EX + self + Style.RESET_ALL)
 
-    @property
     def light_cyan(self):
         return Message(Fore.LIGHTCYAN_EX + self + Style.RESET_ALL)
 
-    @property
     def light_magenta(self):
         return Message(Fore.LIGHTMAGENTA_EX + self + Style.RESET_ALL)
 
     def timestamp(self, machine=None, distinguish=False):
-        pad = 13  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
         if machine:
             pad += 9
             if machine == 'Viia7':
-                machine = Message(machine).cyan
+                machine = Message(machine).cyan()
             else:
-                machine = Message(machine).magenta
+                machine = Message(machine).magenta()
 
         if distinguish:
             pad += 9
-            pref = Message('>>> ').green
+            pref = Message('>>> ').green()
         else:
             pref = ' -  '
         if machine:
@@ -141,7 +119,7 @@ class Message(str):
     @staticmethod
     def bright_time():
         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white
+        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white()
 
 
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
@@ -202,14 +180,14 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
         if os.getlogin() in event.src_path.lower() or x_counter == 1 or x_counter > 9:  # distinguished notif
 
-            file = Message(file).green
+            file = Message(file).green()
             message = ' {} has finished!'.format(file)
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
             print(Message(message).timestamp(machine))
 
         elif not self._user_only:                           # non distinguished notification
 
-            file = Message(file).white
+            file = Message(file).white()
             message = ' {} has finished.'.format(file)
             if (self.q_counter.show and machine == 'Qiaxcel') or \
                     (self.v_counter.show and machine == 'Viia7'):
@@ -223,19 +201,19 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ' + Message('ON').green) if self._auto_export\
-            else print('Auto export processing ' + Message('OFF').red)
+        print('Auto export processing ' + Message('ON').green()) if self._auto_export\
+            else print('Auto export processing ' + Message('OFF').red())
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying ' + Message('YOUR').white + ' events only') if self._user_only\
-            else print('Displaying ' + Message('ALL').white + ' events')
+        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only\
+            else print('Displaying ' + Message('ALL').white() + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ' + Message('ALL').white + ' events')
+        print('Displaying ' + Message('ALL').white() + ' events')
 
     @staticmethod
     def get_event_info(event):
@@ -251,12 +229,9 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
             return os.stat(path).st_size > 1300000
         except (FileNotFoundError, OSError) as e:
             file = str(os.path.splitext(path)[0].split('\\')[-1])
-            print(Message(e).red)  # If not, print error, assume True.
-            print(Message().timestamp(file + " wasn't saved properly! "
-                                             "You'll need to analyse and save the run again from the machine."))
-
-            # print(Display.bright_time() + ' -  {}'.format(self.viia7_str).ljust(21, ' ') + file
-            #       + " wasn't saved properly! You'll need to analyse and save the run again from the machine.")
+            print(Message(e).red())  # If not, print error, assume True.
+            print(Message(file + " wasn't saved properly! You'll need to analyse "
+                                 "and save the run again from the machine.").timestamp())
 
             return True  # Better to inform than not. I think this happens when .eds isn't saved or is deleted?
 
@@ -341,7 +316,7 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher' + Message('OFF').red)
+            print('Clipboard watcher' + Message('OFF').red())
         else:
             self._wait = 2.
             print('Clipboard watcher resumed')
