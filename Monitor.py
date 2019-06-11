@@ -318,10 +318,10 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher' + Message('OFF').red())
+            print('Clipboard watcher ' + Message('OFF').red())
         else:
             self._wait = 2.
-            print('Clipboard watcher resumed')
+            print('Clipboard watcher ' + Message('ON').red())
 
     def stop(self):
         self._stopping = True
@@ -574,8 +574,6 @@ if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
-    # m_lock = Lock()
-    # message = None
     config = configparser.ConfigParser()
     config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # config.ini = ANSI
 
