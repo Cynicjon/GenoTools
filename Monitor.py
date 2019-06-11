@@ -407,7 +407,7 @@ class InputLoop(Thread):
     @staticmethod
     def print_help():
         # TODO: Add colours?
-        print('GenoTools - ver 04.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
+        print('GenoTools - ver 11.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
         print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
               'and auto-processes Viia7 export files and Qiaxcel images.\n'
               'Files with your username will generate a distinguished notification.\n'
