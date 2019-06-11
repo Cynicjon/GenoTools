@@ -10,6 +10,7 @@ import PIL  # required by openpyxl to allow handling of xlsx files with images i
 try:
     import Export
     from watchdog import events, observers
+    from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
     from colorama import Fore, Style, init as colorama_init
     from pandas.io import clipboard
     from PIL import ImageGrab
@@ -539,6 +540,23 @@ class StatusCheck(object):
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
 
+class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
+    def queue_events(self, timeout):
+        try:
+            super().queue_events(timeout)
+        except OSError as e:
+            print(e)
+            connected = False
+            while not connected:
+                try:
+                    self.on_thread_start()  # need to re-set the directory handle.
+                    connected = True
+                    print('reconnected')
+                except OSError:
+                    print('attempting to reconnect...')
+                    time.sleep(10)
+
+
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
@@ -549,7 +567,7 @@ if __name__ == '__main__':
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
     export = Export.Export()
-    observer = observers.Observer()
+    observer = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
     in_loop = InputLoop()
     status = StatusCheck()
 
