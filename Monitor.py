@@ -10,6 +10,7 @@ import PIL  # required by openpyxl to allow handling of xlsx files with images i
 try:
     import Export
     from watchdog import events, observers
+    from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
     from colorama import Fore, Style, init as colorama_init
     from pandas.io import clipboard
     from PIL import ImageGrab
@@ -57,17 +58,82 @@ class Counter(object):
             return ''.ljust(19, ' ') + self._machine + ' Notify OFF'
 
 
-class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
-    patterns = ["*.xdrx", "*.eds", '*.txt']            # Events are only generated for these file types.
-    recent_events = deque('ghi', maxlen=30)            # A queue to prevent duplicate events. 30 is arbitrary.
-    viia7_str = Fore.CYAN + 'Viia7' + Style.RESET_ALL + ':  '       # Colour codes for Viia7.
-    qiaxcel_str = Fore.MAGENTA + 'Qiaxcel' + Style.RESET_ALL + ':'  # Colour codes for Qiaxcel
-    v_counter = Counter(machine=viia7_str)
-    q_counter = Counter(machine=qiaxcel_str)
-    _auto_export = True
-    _user_only = False
-    user = os.getlogin()
+class Message(str):
+    def white(self):
+        return Message(Style.BRIGHT + self + Style.RESET_ALL)
 
+    def green(self):
+        return Message(Fore.GREEN + self + Style.RESET_ALL)
+
+    def cyan(self):
+        return Message(Fore.CYAN + self + Style.RESET_ALL)
+
+    def magenta(self):
+        return Message(Fore.MAGENTA + self + Style.RESET_ALL)
+
+    def red(self):
+        return Message(Fore.RED + self + Style.RESET_ALL)
+
+    def yellow(self):
+        return Message(Fore.YELLOW + self + Style.RESET_ALL)
+
+    def grey(self):
+        return Message(Fore.LIGHTBLACK_EX + self + Style.RESET_ALL)
+
+    def blue(self):
+        return Message(Fore.BLUE + self + Style.RESET_ALL)
+
+    def light_blue(self):
+        return Message(Fore.LIGHTBLUE_EX + self + Style.RESET_ALL)
+
+    def light_green(self):
+        return Message(Fore.LIGHTGREEN_EX + self + Style.RESET_ALL)
+
+    def light_red(self):
+        return Message(Fore.LIGHTRED_EX + self + Style.RESET_ALL)
+
+    def light_cyan(self):
+        return Message(Fore.LIGHTCYAN_EX + self + Style.RESET_ALL)
+
+    def light_magenta(self):
+        return Message(Fore.LIGHTMAGENTA_EX + self + Style.RESET_ALL)
+
+    def timestamp(self, machine=None, distinguish=False):
+        pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        if machine:
+            pad += 9
+            if machine == 'Viia7':
+                machine = Message(machine).cyan()
+            else:
+                machine = Message(machine).magenta()
+
+        if distinguish:
+            pad += 9
+            pref = Message('>>> ').green()
+        else:
+            pref = ' -  '
+        if machine:
+            pref = pref + '{}:'.format(machine)
+        ret = Message(self.bright_time() + pref.ljust(pad, ' '))
+        return Message(ret + self)
+
+    @staticmethod
+    def bright_time():
+        """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
+        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white()
+
+
+class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
+    patterns = ['*.xdrx', '*.eds', '*.txt']            # Events are only generated for these file types.
+
+    def __init__(self):
+        super(LabHandler, self).__init__()
+        self.recent_events = deque('ghi', maxlen=30)
+        self.v_counter = Counter(machine='Viia7')
+        self.q_counter = Counter(machine='Qiaxcel')
+        self._auto_export = True
+        self._user_only = False
+        self.user = os.getlogin()
     """
     The Observer passes events to the handler, which then calls functions based on the type of event
     Event object properties:
@@ -114,17 +180,20 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         machine, file = self.get_event_info(event)
 
         if os.getlogin() in event.src_path.lower() or x_counter == 1 or x_counter > 9:  # distinguished notif
-            file = Fore.GREEN + file + Style.RESET_ALL      # file name in green
-            message = Fore.GREEN + '>>> {}'.format(machine).ljust(21, ' ') + ' {} has finished!'.format(file)
+
+            file = Message(file).green()
+            message = ' {} has finished!'.format(file)
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
-            print(self.bright_time() + message)
+            print(Message(message).timestamp(machine))
 
         elif not self._user_only:                           # non distinguished notification
-            file = Style.BRIGHT + file + Style.RESET_ALL    # file name in white
-            message = ' -  {}'.format(machine).ljust(21, ' ') + ' {} has finished.'.format(file)
-            if (self.q_counter.show and machine == self.qiaxcel_str) or \
-                    (self.v_counter.show and machine == self.viia7_str):
-                print(self.bright_time() + message)
+
+            file = Message(file).white()
+            message = ' {} has finished.'.format(file)
+            if (self.q_counter.show and machine == 'Qiaxcel') or \
+                    (self.v_counter.show and machine == 'Viia7'):
+
+                print(Message(message).timestamp(machine))
 
         if x_counter == 1:         # If this was the run to notify on, inform that notification is now off.
             print(''.ljust(19, ' ') + machine + ' No longer notifying.')
@@ -133,38 +202,38 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ON') if self._auto_export else print('Auto export processing OFF')
+        print('Auto export processing ' + Message('ON').green()) if self._auto_export\
+            else print('Auto export processing ' + Message('OFF').red())
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying your events ONLY') if self._user_only else print('Displaying ALL events')
+        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only\
+            else print('Displaying ' + Message('ALL').white() + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ALL events')
+        print('Displaying ' + Message('ALL').white() + ' events')
 
-    def get_event_info(self, event):
+    @staticmethod
+    def get_event_info(event):
         """Returns the machine name and file path."""
-        machine = self.viia7_str if event.event_type == 'modified' else self.qiaxcel_str
+        machine = 'Viia7' if event.event_type == 'modified' else 'Qiaxcel'
         file = str(os.path.splitext(event.src_path)[0].split('\\')[-1])  # Get file name
         return machine, file
 
     @staticmethod
-    def bright_time():
-        """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Style.BRIGHT + time.strftime("%d.%m.%y %H:%M ", time.localtime()) + Style.NORMAL
-
-    def is_large_enough(self, path):
+    def is_large_enough(path):
         """Determines if the file given by path is above 1300000 bytes"""
         try:
             return os.stat(path).st_size > 1300000
         except (FileNotFoundError, OSError) as e:
             file = str(os.path.splitext(path)[0].split('\\')[-1])
-            print(Fore.RED, e, Style.RESET_ALL)  # If not, print error, assume True.
-            print(self.bright_time() + ' -  {}'.format(self.viia7_str).ljust(21, ' ') + file + " wasn't saved properly!"
-                  " You'll need to analyse and save the run again from the machine.")
+            print(Message(e).red())  # If not, print error, assume True.
+            print(Message(file + " wasn't saved properly! You'll need to analyse "
+                                 "and save the run again from the machine.").timestamp())
+
             return True  # Better to inform than not. I think this happens when .eds isn't saved or is deleted?
 
 
@@ -248,7 +317,7 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher stopped')
+            print('Clipboard watcher' + Message('OFF').red())
         else:
             self._wait = 2.
             print('Clipboard watcher resumed')
@@ -337,6 +406,7 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
+        # TODO: Add colours?
         print('GenoTools - ver 04.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
         print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
               'and auto-processes Viia7 export files and Qiaxcel images.\n'
@@ -470,6 +540,23 @@ class StatusCheck(object):
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
 
+class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
+    def queue_events(self, timeout):
+        try:
+            super().queue_events(timeout)
+        except OSError as e:
+            print(e)
+            connected = False
+            while not connected:
+                try:
+                    self.on_thread_start()  # need to re-set the directory handle.
+                    connected = True
+                    print('reconnected')
+                except OSError:
+                    print('attempting to reconnect...')
+                    time.sleep(10)
+
+
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
@@ -480,7 +567,7 @@ if __name__ == '__main__':
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
     export = Export.Export()
-    observer = observers.Observer()
+    observer = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
     in_loop = InputLoop()
     status = StatusCheck()
 

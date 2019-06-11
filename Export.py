@@ -10,6 +10,9 @@ from openpyxl.styles import Alignment, PatternFill
 from openpyxl.formatting.rule import FormulaRule
 import re
 import PIL
+from Monitor import Message
+
+# TODO: Add text highlighting for export + multi export prints.
 
 
 class Export(object):
@@ -231,7 +234,8 @@ class Export(object):
             print('Multi Export processing complete: ' + path.split(self.xlsx_file)[1])
             self._last_file = self.xlsx_file
             self.xlsx_file = None
-        return 'Multi export processing ON' if self._multi_export else 'Multi export processing OFF'
+        return 'Multi export processing ' + Message('ON').green() if self._multi_export \
+            else 'Multi export processing ' + Message('OFF').red()
 
     @multi.setter
     def multi(self, value):

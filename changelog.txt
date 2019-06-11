@@ -91,3 +91,12 @@ Changelog for LabHelper project
 04.06.2019
 
     Edited Readme + Help text
+
+07.06.2019
+
+    Refactored the colourful message part into a String subclass.
+
+11.06.2019
+
+    Cleaned up Message class
+    Added MyEmitter class to handle crash when losing and regaining connection to the team drive.
