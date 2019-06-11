@@ -129,6 +129,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     def __init__(self):
         super(LabHandler, self).__init__()
         self.recent_events = deque('ghi', maxlen=30)
+        self.error_message = deque(maxlen=1)
         self.v_counter = Counter(machine='Viia7')
         self.q_counter = Counter(machine='Qiaxcel')
         self._auto_export = True
@@ -481,6 +482,7 @@ class StatusCheck(object):
             if self.experiment_path_last is not None else False
         self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
             if self.export_path_last is not None else False
+        self.message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
 
     def update_month(self):
         self.date = time.strftime("%b %Y", time.localtime())  # Update month
@@ -539,28 +541,41 @@ class StatusCheck(object):
         if folder == "Export":
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
+    def thread_print(self, msg):
+        """
+        Prevents duplicate print statements from threads. If it has been sent recently, it is not re sent.
+        message is a deque with length 2.
+        """
+        if msg not in self.message:
+            print(msg)
+            self.message.append(msg)
+
 
 class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
+
     def queue_events(self, timeout):
         try:
             super().queue_events(timeout)
         except OSError as e:
-            print(e)
+            status.thread_print(str(e))
+            status.thread_print('Lost connection to team drive!')
             connected = False
             while not connected:
                 try:
                     self.on_thread_start()  # need to re-set the directory handle.
                     connected = True
-                    print('reconnected')
+                    status.thread_print('Reconnected!')
                 except OSError:
-                    print('attempting to reconnect...')
                     time.sleep(10)
+                    status.thread_print('Reconnecting...')
 
 
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
+    # m_lock = Lock()
+    # message = None
     config = configparser.ConfigParser()
     config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # config.ini = ANSI
 
