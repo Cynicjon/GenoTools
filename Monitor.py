@@ -7,6 +7,7 @@ from threading import Lock, Thread
 from sys import argv
 import configparser
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
+
 try:
     import Export
     from watchdog import events, observers
@@ -59,8 +60,14 @@ class Counter(object):
 
 
 class Message(str):
+    def normal(self):
+        return Message(Fore.WHITE + self + Style.RESET_ALL)
+
     def white(self):
         return Message(Style.BRIGHT + self + Style.RESET_ALL)
+
+    def white2(self):
+        return Message(Fore.LIGHTWHITE_EX + self + Style.RESET_ALL)
 
     def green(self):
         return Message(Fore.GREEN + self + Style.RESET_ALL)
@@ -124,7 +131,7 @@ class Message(str):
 
 
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
-    patterns = ['*.xdrx', '*.eds', '*.txt']            # Events are only generated for these file types.
+    patterns = ['*.xdrx', '*.eds', '*.txt']  # Events are only generated for these file types.
 
     def __init__(self):
         super(LabHandler, self).__init__()
@@ -135,6 +142,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         self._auto_export = True
         self._user_only = False
         self.user = os.getlogin()
+
     """
     The Observer passes events to the handler, which then calls functions based on the type of event
     Event object properties:
@@ -161,12 +169,12 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         if '.xdrx' in event.src_path and event.src_path not in self.recent_events:  # .xdrx file we haven't seen
             with q_lock:
                 self.q_counter.count = self.notif(event, self.q_counter.count)
-        if '.txt' in event.src_path and self.user in event.src_path\
+        if '.txt' in event.src_path and self.user in event.src_path \
                 and "Export" in event.src_path and self._auto_export:
-            time.sleep(0.3)       # wait here to allow file to be fully written # increase if timeout happens a lot
+            time.sleep(0.3)  # wait here to allow file to be fully written # increase if timeout happens a lot
             try:
                 export.new(event.src_path)
-            except OSError:     # if team drive is being slow, wait longer.
+            except OSError:  # if team drive is being slow, wait longer.
                 time.sleep(4)
                 export.new(event.src_path)
             except ValueError as e:  # When the exported file is bad
@@ -187,28 +195,27 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
             print(Message(message).timestamp(machine))
 
-        elif not self._user_only:                           # non distinguished notification
+        elif not self._user_only:  # non distinguished notification
 
             file = Message(file).white()
             message = ' {} has finished.'.format(file)
             if (self.q_counter.show and machine == 'Qiaxcel') or \
                     (self.v_counter.show and machine == 'Viia7'):
-
                 print(Message(message).timestamp(machine))
 
-        if x_counter == 1:         # If this was the run to notify on, inform that notification is now off.
+        if x_counter == 1:  # If this was the run to notify on, inform that notification is now off.
             print(''.ljust(19, ' ') + machine + ' No longer notifying.')
 
-        return x_counter - 1         # Increment counter down
+        return x_counter - 1  # Increment counter down
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ' + Message('ON').green()) if self._auto_export\
+        print('Auto export processing ' + Message('ON').green()) if self._auto_export \
             else print('Auto export processing ' + Message('OFF').red())
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only\
+        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only \
             else print('Displaying ' + Message('ALL').white() + ' events')
 
     def show_all(self):
@@ -308,9 +315,9 @@ class ClipboardWatcher(Thread):
                     self.image.grab()
                     self.image.get()
                 except AttributeError:
-                    pass    # given when clipboard object is not an image. Ignore
+                    pass  # given when clipboard object is not an image. Ignore
                 except AssertionError:
-                    pass    # given when image is not the right size. Ignore
+                    pass  # given when image is not the right size. Ignore
             else:
                 time.sleep(self._wait)
 
@@ -321,7 +328,7 @@ class ClipboardWatcher(Thread):
             print('Clipboard watcher ' + Message('OFF').red())
         else:
             self._wait = 2.
-            print('Clipboard watcher ' + Message('ON').red())
+            print('Clipboard watcher ' + Message('ON').green())
 
     def stop(self):
         self._stopping = True
@@ -333,22 +340,22 @@ class InputLoop(Thread):
         self._stopping = False
         self.daemon = True
         self.instructions = {
-                             labhandler.user_only: ['mine'],
-                             labhandler.show_all: ['all'],
-                             labhandler.auto_export: ['auto'],
-                             export.multi_off: ['done', 'stop'],
-                             export.multi_toggle: ['multi', 'mutli'],
-                             export.last_file: ['last', 'prev', 'previous', 'last file', 'lastfile'],
-                             export.to_file: ['to file', 'tofile', 'file'],
-                             egel_watcher.toggle: ['egels', 'images', 'clip'],
-                             egel_watcher.image.get_scale: ['scale'],
-                             egel_watcher.image.get: ['egel'],
-                             egel_watcher.image.get_small: ['small'],
-                             self.startup: ['install', 'setup'],
-                             self.startup_remove: ['delete', 'uninstall'],
-                             self.stop: ['quit', 'exit', 'QQ', 'quti'],
-                             self.print_help: ['help', 'hlep']
-                             }
+            labhandler.user_only: ['mine'],
+            labhandler.show_all: ['all'],
+            labhandler.auto_export: ['auto'],
+            export.multi_off: ['done', 'stop'],
+            export.multi_toggle: ['multi', 'mutli'],
+            export.last_file: ['last', 'prev', 'previous', 'last file', 'lastfile'],
+            export.to_file: ['to file', 'tofile', 'file'],
+            egel_watcher.toggle: ['egels', 'images', 'clip'],
+            egel_watcher.image.get_scale: ['scale'],
+            egel_watcher.image.get: ['egel'],
+            egel_watcher.image.get_small: ['small'],
+            self.startup: ['install', 'setup'],
+            self.startup_remove: ['delete', 'uninstall'],
+            self.stop: ['quit', 'exit', 'QQ', 'quti'],
+            self.print_help: ['help', 'hlep']
+        }
 
     def run(self):
         print('Running...\nEnter a command or type help')
@@ -407,33 +414,46 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        # TODO: Add colours?
-        print('GenoTools - ver 11.06.2019 - jb40'.center(45, ' ') + '\n'.ljust(45, '-'))
-        print('Monitors Qiaxcel and Viia7 and notifies on run completion, '
-              'and auto-processes Viia7 export files and Qiaxcel images.\n'
-              'Files with your username will generate a distinguished notification.\n'
-              'Commands may be given to notify you on other events, '
-              'e.g. All runs, only your runs, or in n runs time.\n')
-        print('Commands'.center(45, ' ') + '\n'.ljust(45, '-'))
-        print('Press Enter to paste file path, or enter a command\n')
-        print('Notifications'.center(45, ' ') + '\n'.ljust(45, '-'))
-        print('Q or V - no number   : Toggle distinguished notifications for all events')
-        print('Q or V - with number : Distinguished notification after n events.')
-        print('Q or V + "hide"      : Toggle hide Qiaxcel or Viia7 events ')
-        print('Mine                 : Display your events only.')
-        print('All                  : Display all events.')
-        print('Auto Processing'.center(45, ' ') + '\n'.ljust(45, '-'))
-        print('Auto                 : Toggle auto-processing of export files')
-        print('Multi                : Start/Stop Multi export mode (Toggle)')
-        print('Done                 : Stop Multi export mode')
-        print('ToFile               : Export to a pre-existing file (Paste the path)')
-        print('Last                 : Export to the previously exported file')
-        print('Images               : Toggle auto-processing of Qiaxcel images')
-        print(''.ljust(45, '-'))
-        print('Install      Setup   : Start program on Windows Startup')
-        print('Uninstall    Delete  : Remove from Windows Startup')
-        print('Quit         Exit    : Exit the program')
-        print(''.ljust(45, '-'))
+        q = Message('Qiaxcel').magenta()
+        v = Message('Viia7').cyan()
+        q_or_v = Message(Message('Q').magenta() + ' or ' + Message('V').cyan())
+        toggle = Message('(Toggle)').grey()
+        help_dict = {
+            Message('GenoTools____v11.06.19____jb40').white(): {
+                Message('Monitors ' + q + ' and ' + v + ' and notifies when runs complete.\n'
+                        '  Auto-processes ' + q + ' gel images and ' + v + ' export files.\n\n'
+                        '   Files with your username will generate a notification.\n'
+                        '    Commands may be given to notify you on other events.').normal(): ''},
+
+            Message('Commands').white(): {
+                Message('    Press Enter to paste file path, or enter a command').normal(): ''},
+
+            Message('Notifications').white(): {
+                q_or_v + '         ': ': Notifications for all events '.ljust(36, ' ') + toggle,
+                q_or_v + ' + ' + Message('digit ').yellow():
+                    ": Notify after " + Message('[digit]').yellow() + " events.",
+                q_or_v + ' + ' + Message('hide  ').white():
+                    ': Hide ' + q + ' or ' + v + ' events '.ljust(13, ' ') + toggle,
+                'Mine': ': Display your events only '.ljust(36, ' ') + toggle,
+                'All': ': Display all events'},
+
+            Message('Auto-Processing').white(): {
+                'Auto': ': Auto-process ' + v + ' export files '.ljust(16, ' ') + toggle,
+                'Multi': ': Start Multi export mode '.ljust(36, ' ') + toggle,
+                'Done': ': Stop Multi export mode',
+                'ToFile': ': Export to a pre-existing file',
+                'Last': ': Export to the previous file',
+                'Images': ': Auto-process ' + q + ' images       ' + toggle},
+
+            Message('Other').white(): {
+                'Install': ': Start on Windows Startup',
+                'Uninstall': ': Remove from Windows Startup',
+                'Quit': ': Exit the program'}}
+
+        for key in help_dict:
+            print('\n' + Message(key.center(68, '_')) + '\n')
+            for command in help_dict[key]:
+                print(' ' + Message(command).white().ljust(23, ' ') + help_dict[key][command])
 
     @staticmethod
     def startup():
@@ -478,7 +498,7 @@ class StatusCheck(object):
         self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)
         self.experiment_watch_curr = observer.schedule(labhandler, path=self.experiment_path)
         self.export_watch_curr = observer.schedule(labhandler, path=self.export_path)
-        self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last)\
+        self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last) \
             if self.experiment_path_last is not None else False
         self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
             if self.export_path_last is not None else False
@@ -514,8 +534,8 @@ class StatusCheck(object):
         date_t = date.today()
         if last_month:
             makedirs = False
-            first = date_t.replace(day=1)                     # replace the day with the first of the month.
-            date_t = first - timedelta(days=1)                # subtract one day to get the last day of last month
+            first = date_t.replace(day=1)  # replace the day with the first of the month.
+            date_t = first - timedelta(days=1)  # subtract one day to get the last day of last month
         month, year = date_t.strftime('%b %Y').split(' ')
         path = self.build_path(month, year, folder)
         if os.path.isdir(path):

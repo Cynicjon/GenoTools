@@ -101,3 +101,6 @@ Changelog for LabHelper project
     Cleaned up Message class
     Added MyEmitter class to handle crash when losing and regaining connection to the team drive.
     Prevented duplicate messages when threads lose and gain connection
+    
+13.06.2019
+    Re-wrote help function to be clearer
