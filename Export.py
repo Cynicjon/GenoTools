@@ -52,7 +52,7 @@ class Export(object):
             self.to_xlsx()
         except PermissionError as e:
             print(e)
-            print("You already have an export of this file open. Close it and re-try.")
+            print(Message("You already have an export of this file open. Close it and re-try.").red())
         except ValueError as e:  # if file is missing cols or is not an export - raised in read_file()
             print(e)
 
@@ -231,7 +231,8 @@ class Export(object):
         """
         if not self._multi_export and self.xlsx_file:
             startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
-            print('Multi Export processing complete: ' + path.split(self.xlsx_file)[1])
+            print(Message('Multi Export processing complete: '
+                          + path.split(self.xlsx_file)[1]).timestamp(machine='Viia7'))
             self._last_file = self.xlsx_file
             self.xlsx_file = None
         return 'Multi export processing ' + Message('ON').green() if self._multi_export \
@@ -277,7 +278,7 @@ class Export(object):
                 self.multi = False
                 break
             else:
-                print('That isn\'t an excel file path!')
+                print(Message('That isn\'t an excel file path!').red())
         if self.xlsx_file:
             print('Thanks. You can now export your files, or paste the file path here.')
 
@@ -368,9 +369,9 @@ class Export(object):
         wb.active = ws
         writer.save()  # Save xlsx.
         if self._multi_export:
-            print('Sheet added: ' + sheet)
+            print(Message('Sheet added: ' + sheet).timestamp(machine='Viia7'))
         else:
-            print("Export processing complete: " + path.split(self.xlsx_file)[1])
+            print(Message("Export processing complete: " + path.split(self.xlsx_file)[1]).timestamp(machine='Viia7'))
             self._last_file = self.xlsx_file
             startfile(self.xlsx_file)
             self.xlsx_file = None

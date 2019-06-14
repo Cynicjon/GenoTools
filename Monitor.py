@@ -60,50 +60,56 @@ class Counter(object):
 
 
 class Message(str):
+    def reset(self):
+        return Message(self + Style.RESET_ALL)
+
+    def pre_reset(self):
+        return Message(Style.RESET_ALL + self)
+
     def normal(self):
-        return Message(Fore.WHITE + self + Style.RESET_ALL)
+        return Message(self).pre_reset().reset()
 
     def white(self):
-        return Message(Style.BRIGHT + self + Style.RESET_ALL)
+        return Message(Style.BRIGHT + self).reset()
 
     def white2(self):
-        return Message(Fore.LIGHTWHITE_EX + self + Style.RESET_ALL)
-
-    def green(self):
-        return Message(Fore.GREEN + self + Style.RESET_ALL)
-
-    def cyan(self):
-        return Message(Fore.CYAN + self + Style.RESET_ALL)
-
-    def magenta(self):
-        return Message(Fore.MAGENTA + self + Style.RESET_ALL)
-
-    def red(self):
-        return Message(Fore.RED + self + Style.RESET_ALL)
-
-    def yellow(self):
-        return Message(Fore.YELLOW + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTWHITE_EX + self).reset()
 
     def grey(self):
-        return Message(Fore.LIGHTBLACK_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTBLACK_EX + self).reset()
+
+    def green(self):
+        return Message(Fore.GREEN + self).reset()
+
+    def cyan(self):
+        return Message(Fore.CYAN + self).reset()
+
+    def magenta(self):
+        return Message(Fore.MAGENTA + self).reset()
+
+    def red(self):
+        return Message(Fore.RED + self).reset()
+
+    def yellow(self):
+        return Message(Fore.YELLOW + self).reset()
 
     def blue(self):
-        return Message(Fore.BLUE + self + Style.RESET_ALL)
+        return Message(Fore.BLUE + self).reset()
 
     def light_blue(self):
-        return Message(Fore.LIGHTBLUE_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTBLUE_EX + self).reset()
 
     def light_green(self):
-        return Message(Fore.LIGHTGREEN_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTGREEN_EX + self).reset()
 
     def light_red(self):
-        return Message(Fore.LIGHTRED_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTRED_EX + self).reset()
 
     def light_cyan(self):
-        return Message(Fore.LIGHTCYAN_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTCYAN_EX + self).reset()
 
     def light_magenta(self):
-        return Message(Fore.LIGHTMAGENTA_EX + self + Style.RESET_ALL)
+        return Message(Fore.LIGHTMAGENTA_EX + self).reset()
 
     def timestamp(self, machine=None, distinguish=False):
         pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
@@ -305,7 +311,6 @@ class ClipboardWatcher(Thread):
         self.image = Egel()
 
     def run(self):
-        print('Clipboard watcher starting...')
         recent_value = win32clipboard.GetClipboardSequenceNumber()
         while not self._stopping:
             tmp_value = win32clipboard.GetClipboardSequenceNumber()
@@ -358,7 +363,7 @@ class InputLoop(Thread):
         }
 
     def run(self):
-        print('Running...\nEnter a command or type help')
+        print('Running...\nEnter a command or type help for options')
         while not self._stopping:
             inp = self.get_input()
             if os.path.isfile(inp):
@@ -414,21 +419,18 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        q = Message('Qiaxcel').magenta()
-        v = Message('Viia7').cyan()
+        q, v = Message('Qiaxcel').magenta(), Message('Viia7').cyan()
         q_or_v = Message(Message('Q').magenta() + ' or ' + Message('V').cyan())
         toggle = Message('(Toggle)').grey()
         help_dict = {
-            Message('GenoTools____v11.06.19____jb40').white(): {
+            'GenoTools____v14.06.19____jb40': {
                 Message('Monitors ' + q + ' and ' + v + ' and notifies when runs complete.\n'
                         '  Auto-processes ' + q + ' gel images and ' + v + ' export files.\n\n'
                         '   Files with your username will generate a notification.\n'
                         '    Commands may be given to notify you on other events.').normal(): ''},
-
-            Message('Commands').white(): {
+            'Commands': {
                 Message('    Press Enter to paste file path, or enter a command').normal(): ''},
-
-            Message('Notifications').white(): {
+            'Notifications': {
                 q_or_v + '         ': ': Notifications for all events '.ljust(36, ' ') + toggle,
                 q_or_v + ' + ' + Message('digit ').yellow():
                     ": Notify after " + Message('[digit]').yellow() + " events.",
@@ -436,24 +438,21 @@ class InputLoop(Thread):
                     ': Hide ' + q + ' or ' + v + ' events '.ljust(13, ' ') + toggle,
                 'Mine': ': Display your events only '.ljust(36, ' ') + toggle,
                 'All': ': Display all events'},
-
-            Message('Auto-Processing').white(): {
+            'Auto-Processing': {
                 'Auto': ': Auto-process ' + v + ' export files '.ljust(16, ' ') + toggle,
                 'Multi': ': Start Multi export mode '.ljust(36, ' ') + toggle,
                 'Done': ': Stop Multi export mode',
                 'ToFile': ': Export to a pre-existing file',
                 'Last': ': Export to the previous file',
                 'Images': ': Auto-process ' + q + ' images       ' + toggle},
-
-            Message('Other').white(): {
-                'Install': ': Start on Windows Startup',
+            'Other': {
+                'Install':   ': Start on Windows Startup',
                 'Uninstall': ': Remove from Windows Startup',
-                'Quit': ': Exit the program'}}
-
-        for key in help_dict:
-            print('\n' + Message(key.center(68, '_')) + '\n')
-            for command in help_dict[key]:
-                print(' ' + Message(command).white().ljust(23, ' ') + help_dict[key][command])
+                'Quit':      ': Exit the program'}}
+        for heading in help_dict:
+            print('\n' + Message(heading).white().center(68, '_') + '\n')
+            for command in help_dict[heading]:
+                print(' ' + Message(command).white2().ljust(24, ' ') + help_dict[heading][command])
 
     @staticmethod
     def startup():
@@ -467,7 +466,7 @@ class InputLoop(Thread):
                 f.write("start /MIN python " + argv[0])
             else:
                 f.write("start /MIN " + argv[0])
-        print("Done!")
+        print(Message("Done!").green())
 
     @staticmethod
     def startup_remove():
@@ -476,7 +475,7 @@ class InputLoop(Thread):
                                           "\\Startup\\Lab Helper.cmd")
         try:
             os.remove(startup_file)
-            print("Removed.")
+            print(Message("Removed.").green())
         except FileNotFoundError:
             print('File not found!')
 
