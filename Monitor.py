@@ -2,10 +2,11 @@ import time
 from datetime import datetime, date, timedelta
 import ctypes
 import os
-from collections import deque
+from collections import deque, UserString
 from threading import Lock, Thread
 from sys import argv
 import configparser
+import re
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 
 try:
@@ -59,57 +60,79 @@ class Counter(object):
             return ''.ljust(19, ' ') + self._machine + ' Notify OFF'
 
 
-class Message(str):
+class Message(UserString):
+
+    def __init__(self, seq):
+        self.data = ''
+        super().__init__(seq)
+
+    def __repr__(self):
+        return f'{type(self).__name__}({super().__repr__()})'
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return self.__class__(other + self.data)
+        return self.__class__(str(other) + self.data)
+
+    def __str__(self):
+
+        new = re.sub(r'Qiaxcel', Fore.MAGENTA + 'Qiaxcel' + Style.RESET_ALL, self.data)
+        new = re.sub(r'\bQ\b', Fore.MAGENTA + 'Q' + Style.RESET_ALL, new)
+        new = re.sub(r'Viia7', Fore.CYAN + 'Viia7' + Style.RESET_ALL, new)
+        new = re.sub(r'\bV\b', Fore.CYAN + 'V' + Style.RESET_ALL, new)
+        new = re.sub(r'\(Toggle\)', Fore.LIGHTBLACK_EX + '(Toggle)' + Style.RESET_ALL, new)
+        return new
+
     def reset(self):
-        return Message(self + Style.RESET_ALL)
+        return Message(self.data + Style.RESET_ALL)
 
     def pre_reset(self):
-        return Message(Style.RESET_ALL + self)
+        return Message(Style.RESET_ALL + self.data)
 
     def normal(self):
-        return Message(self).pre_reset().reset()
+        return Message(self.data).pre_reset().reset()
 
     def white(self):
-        return Message(Style.BRIGHT + self).reset()
+        return Message(Style.BRIGHT + self.data + Style.RESET_ALL)
 
     def white2(self):
-        return Message(Fore.LIGHTWHITE_EX + self).reset()
+        return Message(Fore.LIGHTWHITE_EX + self.data + Style.RESET_ALL)
 
     def grey(self):
-        return Message(Fore.LIGHTBLACK_EX + self).reset()
+        return Message(Fore.LIGHTBLACK_EX + self.data + Style.RESET_ALL)
 
     def green(self):
-        return Message(Fore.GREEN + self).reset()
+        return Message(Fore.GREEN + self.data + Style.RESET_ALL)
 
     def cyan(self):
-        return Message(Fore.CYAN + self).reset()
+        return Message(Fore.CYAN + self.data + Style.RESET_ALL)
 
     def magenta(self):
-        return Message(Fore.MAGENTA + self).reset()
+        return Message(Fore.MAGENTA + self.data + Style.RESET_ALL)
 
     def red(self):
-        return Message(Fore.RED + self).reset()
+        return Message(Fore.RED + self.data + Style.RESET_ALL)
 
     def yellow(self):
-        return Message(Fore.YELLOW + self).reset()
+        return Message(Fore.YELLOW + self.data + Style.RESET_ALL)
 
     def blue(self):
-        return Message(Fore.BLUE + self).reset()
+        return Message(Fore.BLUE + self.data + Style.RESET_ALL)
 
     def light_blue(self):
-        return Message(Fore.LIGHTBLUE_EX + self).reset()
+        return Message(Fore.LIGHTBLUE_EX + self.data + Style.RESET_ALL)
 
     def light_green(self):
-        return Message(Fore.LIGHTGREEN_EX + self).reset()
+        return Message(Fore.LIGHTGREEN_EX + self.data + Style.RESET_ALL)
 
     def light_red(self):
-        return Message(Fore.LIGHTRED_EX + self).reset()
+        return Message(Fore.LIGHTRED_EX + self.data + Style.RESET_ALL)
 
     def light_cyan(self):
-        return Message(Fore.LIGHTCYAN_EX + self).reset()
+        return Message(Fore.LIGHTCYAN_EX + self.data + Style.RESET_ALL)
 
     def light_magenta(self):
-        return Message(Fore.LIGHTMAGENTA_EX + self).reset()
+        return Message(Fore.LIGHTMAGENTA_EX + self.data + Style.RESET_ALL)
 
     def timestamp(self, machine=None, distinguish=False):
         pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
@@ -419,22 +442,24 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        q, v = Message('Qiaxcel').magenta(), Message('Viia7').cyan()
-        q_or_v = Message(Message('Q').magenta() + ' or ' + Message('V').cyan())
-        toggle = Message('(Toggle)').grey()
+        q, v = 'Qiaxcel', 'Viia7'
+        # q, v = Message('Qiaxcel').magenta(), Message('Viia7').cyan()
+        q_or_v = Message('Q or V')
+        #toggle = Message('(Toggle)').grey()
+        toggle = '(Toggle)'
         help_dict = {
             'GenoTools____v14.06.19____jb40': {
-                Message('Monitors ' + q + ' and ' + v + ' and notifies when runs complete.\n'
+                Message('Monitors Qiaxcel and ' + v + ' and notifies when runs complete.\n'
                         '  Auto-processes ' + q + ' gel images and ' + v + ' export files.\n\n'
                         '   Files with your username will generate a notification.\n'
                         '    Commands may be given to notify you on other events.').normal(): ''},
             'Commands': {
                 Message('    Press Enter to paste file path, or enter a command').normal(): ''},
             'Notifications': {
-                q_or_v + '         ': ': Notifications for all events '.ljust(36, ' ') + toggle,
-                q_or_v + ' + ' + Message('digit ').yellow():
+                'Q or V         ': ': Notifications for all events '.ljust(36, ' ') + toggle,
+                'Q or V + ' + Message('digit ').yellow():
                     ": Notify after " + Message('[digit]').yellow() + " events.",
-                q_or_v + ' + ' + Message('hide  ').white():
+                'Q or V + ' + Message('hide  ').white():
                     ': Hide ' + q + ' or ' + v + ' events '.ljust(13, ' ') + toggle,
                 'Mine': ': Display your events only '.ljust(36, ' ') + toggle,
                 'All': ': Display all events'},
@@ -452,7 +477,7 @@ class InputLoop(Thread):
         for heading in help_dict:
             print('\n' + Message(heading).white().center(68, '_') + '\n')
             for command in help_dict[heading]:
-                print(' ' + Message(command).white2().ljust(24, ' ') + help_dict[heading][command])
+                print(Message(' ' + command).white2().ljust(25, ' ') + Message(help_dict[heading][command]))
 
     @staticmethod
     def startup():
