@@ -442,34 +442,30 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        q, v = 'Qiaxcel', 'Viia7'
-        # q, v = Message('Qiaxcel').magenta(), Message('Viia7').cyan()
-        q_or_v = Message('Q or V')
-        #toggle = Message('(Toggle)').grey()
         toggle = '(Toggle)'
         help_dict = {
-            'GenoTools____v14.06.19____jb40': {
-                Message('Monitors Qiaxcel and ' + v + ' and notifies when runs complete.\n'
-                        '  Auto-processes ' + q + ' gel images and ' + v + ' export files.\n\n'
+            'GenoTools____v11.07.19____jb40': {
+                Message('Monitors Qiaxcel and Viia7 and notifies when runs complete.\n'
+                        '  Auto-processes Qiaxcel gel images and Viia7 export files.\n\n'
                         '   Files with your username will generate a notification.\n'
                         '    Commands may be given to notify you on other events.').normal(): ''},
             'Commands': {
                 Message('    Press Enter to paste file path, or enter a command').normal(): ''},
             'Notifications': {
-                'Q or V         ': ': Notifications for all events '.ljust(36, ' ') + toggle,
+                'Q or V         ': ': Notifications for all events '.ljust(36, ' ') + '(Toggle)',
                 'Q or V + ' + Message('digit ').yellow():
                     ": Notify after " + Message('[digit]').yellow() + " events.",
                 'Q or V + ' + Message('hide  ').white():
-                    ': Hide ' + q + ' or ' + v + ' events '.ljust(13, ' ') + toggle,
-                'Mine': ': Display your events only '.ljust(36, ' ') + toggle,
+                    ': Hide Qiaxcel or Viia7 events '.ljust(36, ' ') + '(Toggle)',
+                'Mine': ': Display your events only '.ljust(36, ' ') + '(Toggle)',
                 'All': ': Display all events'},
             'Auto-Processing': {
-                'Auto': ': Auto-process ' + v + ' export files '.ljust(16, ' ') + toggle,
-                'Multi': ': Start Multi export mode '.ljust(36, ' ') + toggle,
+                'Auto': ': Auto-process Viia7 export files '.ljust(36, ' ') + '(Toggle)',
+                'Multi': ': Start Multi export mode '.ljust(36, ' ') + '(Toggle)',
                 'Done': ': Stop Multi export mode',
                 'ToFile': ': Export to a pre-existing file',
                 'Last': ': Export to the previous file',
-                'Images': ': Auto-process ' + q + ' images       ' + toggle},
+                'Images': ': Auto-process Qiaxcel images       ' + '(Toggle)'},
             'Other': {
                 'Install':   ': Start on Windows Startup',
                 'Uninstall': ': Remove from Windows Startup',
