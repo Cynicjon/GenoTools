@@ -235,8 +235,8 @@ class Export(object):
                           + path.split(self.xlsx_file)[1]).timestamp(machine='Viia7'))
             self._last_file = self.xlsx_file
             self.xlsx_file = None
-        return 'Multi export processing ' + Message('ON').green() if self._multi_export \
-            else 'Multi export processing ' + Message('OFF').red()
+        return Message('Multi export processing ON') if self._multi_export \
+            else Message('Multi export processing OFF')  # + Message('OFF').red()
 
     @multi.setter
     def multi(self, value):

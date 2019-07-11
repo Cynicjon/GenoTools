@@ -81,6 +81,8 @@ class Message(UserString):
         new = re.sub(r'Viia7', Fore.CYAN + 'Viia7' + Style.RESET_ALL, new)
         new = re.sub(r'\bV\b', Fore.CYAN + 'V' + Style.RESET_ALL, new)
         new = re.sub(r'\(Toggle\)', Fore.LIGHTBLACK_EX + '(Toggle)' + Style.RESET_ALL, new)
+        new = re.sub(r'\bON\b', Fore.GREEN + 'ON' + Style.RESET_ALL, new)
+        new = re.sub(r'\bOFF\b', Fore.RED + 'OFF' + Style.RESET_ALL, new)
         return new
 
     def reset(self):
@@ -104,10 +106,10 @@ class Message(UserString):
     def green(self):
         return Message(Fore.GREEN + self.data + Style.RESET_ALL)
 
-    def cyan(self):
+    def cyan(self):  # Viia7 colour
         return Message(Fore.CYAN + self.data + Style.RESET_ALL)
 
-    def magenta(self):
+    def magenta(self):  # Qiaxcel colour
         return Message(Fore.MAGENTA + self.data + Style.RESET_ALL)
 
     def red(self):
@@ -116,25 +118,8 @@ class Message(UserString):
     def yellow(self):
         return Message(Fore.YELLOW + self.data + Style.RESET_ALL)
 
-    def blue(self):
-        return Message(Fore.BLUE + self.data + Style.RESET_ALL)
-
-    def light_blue(self):
-        return Message(Fore.LIGHTBLUE_EX + self.data + Style.RESET_ALL)
-
-    def light_green(self):
-        return Message(Fore.LIGHTGREEN_EX + self.data + Style.RESET_ALL)
-
-    def light_red(self):
-        return Message(Fore.LIGHTRED_EX + self.data + Style.RESET_ALL)
-
-    def light_cyan(self):
-        return Message(Fore.LIGHTCYAN_EX + self.data + Style.RESET_ALL)
-
-    def light_magenta(self):
-        return Message(Fore.LIGHTMAGENTA_EX + self.data + Style.RESET_ALL)
-
     def timestamp(self, machine=None, distinguish=False):
+        # TODO could this make use of the __str__ method?
         pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
         if machine:
             pad += 9
@@ -239,8 +224,8 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print('Auto export processing ' + Message('ON').green()) if self._auto_export \
-            else print('Auto export processing ' + Message('OFF').red())
+        print(Message('Auto export processing ON')) if self._auto_export \
+            else print(Message('Auto export processing OFF'))
 
     def user_only(self):
         self._user_only = not self._user_only
@@ -353,10 +338,10 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print('Clipboard watcher ' + Message('OFF').red())
+            print(Message('Clipboard watcher OFF'))
         else:
             self._wait = 2.
-            print('Clipboard watcher ' + Message('ON').green())
+            print(Message('Clipboard watcher ON'))
 
     def stop(self):
         self._stopping = True
@@ -442,7 +427,6 @@ class InputLoop(Thread):
 
     @staticmethod
     def print_help():
-        toggle = '(Toggle)'
         help_dict = {
             'GenoTools____v11.07.19____jb40': {
                 Message('Monitors Qiaxcel and Viia7 and notifies when runs complete.\n'
