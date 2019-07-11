@@ -110,3 +110,6 @@ Changelog for LabHelper project
 
     Cleaned up help function a little
     Added timestamp to export complete prints.
+
+11.07.2019
+    Added __radd__, __str__ and __init__ to Message, simplified prints throughout using __str__
