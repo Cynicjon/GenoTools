@@ -207,7 +207,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
             file = Message(file).green()
             message = ' {} has finished!'.format(file)
             ctypes.windll.user32.FlashWindow(ctypes.windll.kernel32.GetConsoleWindow(), True)  # Flash console window
-            print(Message(message).timestamp(machine))
+            print(Message(message).timestamp(machine, distinguish=True))
 
         elif not self._user_only:  # non distinguished notification
 
@@ -576,15 +576,17 @@ class StatusCheck(object):
 
 
 class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
-
-    def queue_events(self, timeout):
+    """This class is used to catch an uncatchable exception in watchdog
+        that would occur when the connection to the network drive was
+        temporarily lost"""
+    def queue_events(self, timeout):  # Subclass queue events - this is where the exception occurs
         try:
             super().queue_events(timeout)
-        except OSError as e:
+        except OSError as e:    # Catch the exception and print error
             status.thread_print(str(e))
             status.thread_print('Lost connection to team drive!')
             connected = False
-            while not connected:
+            while not connected:  # resume when connection to network drive is restored
                 try:
                     self.on_thread_start()  # need to re-set the directory handle.
                     connected = True

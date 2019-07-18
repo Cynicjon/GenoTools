@@ -12,8 +12,6 @@ import re
 import PIL
 from Monitor import Message
 
-# TODO: Add text highlighting for export + multi export prints.
-
 
 class Export(object):
 
@@ -231,8 +229,7 @@ class Export(object):
         """
         if not self._multi_export and self.xlsx_file:
             startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
-            print(Message('Multi Export processing complete: '
-                          + path.split(self.xlsx_file)[1]).timestamp(machine='Viia7'))
+            print(Message('Multi Export complete: ' + path.split(self.xlsx_file)[1]).timestamp())
             self._last_file = self.xlsx_file
             self.xlsx_file = None
         return Message('Multi export processing ON') if self._multi_export \
@@ -305,7 +302,7 @@ class Export(object):
             plates.append(match.group()) if match else assays_etc.append(item)
 
         for i in plates:
-            plates_small.append(i.replace('SL000', '').replace('C0000', '')[:5])
+            plates_small.append(i.upper().replace('SL000', '').replace('C0000', '')[:5])
 
         final = '_'.join(plates + assays_etc + user)
         if len(final) >= 31:
@@ -369,9 +366,9 @@ class Export(object):
         wb.active = ws
         writer.save()  # Save xlsx.
         if self._multi_export:
-            print(Message('Sheet added: ' + sheet).timestamp(machine='Viia7'))
+            print(Message('Sheet added: ' + sheet).timestamp())
         else:
-            print(Message("Export processing complete: " + path.split(self.xlsx_file)[1]).timestamp(machine='Viia7'))
+            print(Message("Export complete: " + path.split(self.xlsx_file)[1]).timestamp())
             self._last_file = self.xlsx_file
             startfile(self.xlsx_file)
             self.xlsx_file = None

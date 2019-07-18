@@ -82,7 +82,7 @@ Changelog for LabHelper project
     Added export to last file functionality
     Moved to_file to Export_class
     Fixed some bugs with multi export and tofile
-    Cleared up Todo's
+    Cleared up todo's
 
 03.06.2019
 
@@ -113,3 +113,10 @@ Changelog for LabHelper project
 
 11.07.2019
     Added __radd__, __str__ and __init__ to Message, simplified prints throughout using __str__
+
+18.07.2019
+    Added case insensitivity for sheet name substitution
+    Shortened export complete prints, removed machine info
+    Fixed distinguished prints to use '>>>' again
+    Added comments to MyEmitter class
+    Update exe
