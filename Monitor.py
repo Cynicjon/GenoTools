@@ -25,9 +25,10 @@ except ModuleNotFoundError:
 
 
 class Counter(object):
+    # A counter for when to recieve notifications. There is one counter for each machine.
     def __init__(self, machine=''):
         self._count = 0
-        self._show = True
+        self._show = True  # whether to show notifications or not
         self._machine = machine
 
     @property
@@ -36,6 +37,7 @@ class Counter(object):
 
     @count.setter
     def count(self, value):
+        # If we set count to 0, we toggle notifications or or off. see notify_setting()
         if value == 0:
             self._count = 0 if self._count > 0 else 1337
         else:
@@ -47,6 +49,7 @@ class Counter(object):
 
     @show.setter
     def show(self, value):
+        # If we directly assign a value, use that, else toggle
         self._show = value if value is True or value is False else not self._show
 
     @property
@@ -67,15 +70,23 @@ class Message(UserString):
         super().__init__(seq)
 
     def __repr__(self):
+        # for debugging
         return f'{type(self).__name__}({super().__repr__()})'
 
     def __radd__(self, other):
+        """
+        Defining a reverse add method so that "string + Message instance" returns a Message instance
+        :param other: str
+        :return: Message()
+        """
         if isinstance(other, str):
             return self.__class__(other + self.data)
         return self.__class__(str(other) + self.data)
 
     def __str__(self):
-
+        """
+        String representation of Message(). Here we can add colour highlighting to specific words
+        """
         new = re.sub(r'Qiaxcel', Fore.MAGENTA + 'Qiaxcel' + Style.RESET_ALL, self.data)
         new = re.sub(r'\bQ\b', Fore.MAGENTA + 'Q' + Style.RESET_ALL, new)
         new = re.sub(r'Viia7', Fore.CYAN + 'Viia7' + Style.RESET_ALL, new)
@@ -119,8 +130,14 @@ class Message(UserString):
         return Message(Fore.YELLOW + self.data + Style.RESET_ALL)
 
     def timestamp(self, machine=None, distinguish=False):
+        """
+        Adds a timestamp to messages
+        :param machine: Str : None, Viia7 or Qiaxcel
+        :param distinguish: bool : Green >>> if true
+        :return: Message() : Highlighted message
+        """
         # TODO could this make use of the __str__ method?
-        pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        pad = 11  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
         if machine:
             pad += 9
             if machine == 'Viia7':
@@ -149,7 +166,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
 
     def __init__(self):
         super(LabHandler, self).__init__()
-        self.recent_events = deque('ghi', maxlen=30)
+        self.recent_events = deque('ghi', maxlen=30)  # A list of recent events to prevent duplicate messages.
         self.error_message = deque(maxlen=1)
         self.v_counter = Counter(machine='Viia7')
         self.q_counter = Counter(machine='Qiaxcel')
@@ -158,7 +175,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
         self.user = os.getlogin()
 
     """
-    The Observer passes events to the handler, which then calls functions based on the type of event
+    The Observer passes events to the handler (this class), which then calls functions based on the type of event
     Event object properties:
     event.event_type
         'modified' | 'created' | 'moved' | 'deleted'
@@ -263,8 +280,9 @@ class Egel(object):
     _original = ''
 
     def grab(self):
+        # Retrieves image from clipboard and makes sure the image is the right size
         new = ImageGrab.grabclipboard()
-        assert (new.size[1] in {1575, 788, 504, 394})
+        assert (new.size[1] in {1575, 788, 504, 394})  # These are the height values for different image dpi levels.
         self._original = new
 
     def get(self):
@@ -279,15 +297,15 @@ class Egel(object):
 
     def crop(self, crop_type='standard'):
         # crop is a box within an image defined in pixels (left, top, right, bottom)
-        crops = {'small': (self._original.size[1] / 5.54,
+        crops = {'small': (self._original.size[1] / 5.54,       # Samples without scale
                            self._original.size[1] / 71.7,
                            self._original.size[0] - self._original.size[1] / 5.325,
                            self._original.size[1]),
-                 'scale': (0,
+                 'scale': (0,                                   # Scale only
                            self._original.size[1] / 71.7,
                            self._original.size[1] / 5.54,
                            self._original.size[1]),
-                 'standard': (self._original.size[1] / 5.54,
+                 'standard': (self._original.size[1] / 5.54,    # Samples with scale attached
                               self._original.size[1] / 71.7,
                               self._original.size[0] - self._original.size[1] / 168,
                               self._original.size[1])}
@@ -295,13 +313,13 @@ class Egel(object):
         img = img.rotate(270, expand=True)
         img_out = BytesIO()
         img.convert("RGB").save(img_out, "BMP")
-        img_final = img_out.getvalue()[14:]
+        img_final = img_out.getvalue()[14:]  # the first 15 bytes are header.
         img_out.close()
         return img_final
 
     @staticmethod
     def send_to_clipboard(*args):
-        for item in args:
+        for item in args:  # Can send multiple images to clipboard one after another.
             win32clipboard.OpenClipboard()
             win32clipboard.EmptyClipboard()
             win32clipboard.SetClipboardData(win32clipboard.CF_DIB, item)
@@ -311,14 +329,21 @@ class Egel(object):
 
 
 class ClipboardWatcher(Thread):
+    """
+    Thread that watches the clipboard for Qiaxcel images and edits them for pasting into summary files.
+    """
     def __init__(self):
         super(ClipboardWatcher, self).__init__()
-        self._wait = 2.
+        self._wait = 1.5  # How often to check the clipboard, can be safely reduced if needed.
         self._paused = False
         self._stopping = False
         self.image = Egel()
 
     def run(self):
+        """
+        win32clipboard.GetClipboardSequenceNumber() changes every time the clipboard is used.
+        We check if it has changed and attempt to process if it has.
+        """
         recent_value = win32clipboard.GetClipboardSequenceNumber()
         while not self._stopping:
             tmp_value = win32clipboard.GetClipboardSequenceNumber()
@@ -335,6 +360,10 @@ class ClipboardWatcher(Thread):
                 time.sleep(self._wait)
 
     def toggle(self):
+        """
+        Toggles image editing and reduces the poll rate.
+        :return:
+        """
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
@@ -348,11 +377,15 @@ class ClipboardWatcher(Thread):
 
 
 class InputLoop(Thread):
+    """
+    The main input loop the users sees, run in its own thread. Takes commands or file paths as
+    input and calls appropriate method.
+    """
     def __init__(self):
         super(InputLoop, self).__init__()
-        self._stopping = False
+        self._stopping = False  # Kill switch to stop run() loop
         self.daemon = True
-        self.instructions = {
+        self.instructions = {   # A reverse dictionary where the keys are the task and the key values are the commands
             labhandler.user_only: ['mine'],
             labhandler.show_all: ['all'],
             labhandler.auto_export: ['auto'],
@@ -383,7 +416,7 @@ class InputLoop(Thread):
                     print(e)
             else:
                 inp = inp.lower()
-
+                # Lookup command in instructions and call the method
                 cont = False
                 for key in self.instructions:
                     if inp in self.instructions[key]:
@@ -418,6 +451,10 @@ class InputLoop(Thread):
 
     @staticmethod
     def get_input():
+        """
+        Asks for user input. If blank, reads clipboard for input.
+        :return:
+        """
         inp = input('')
         if not inp:  # if blank input, read clipboard.
             inp = clipboard.clipboard_get()
@@ -428,7 +465,7 @@ class InputLoop(Thread):
     @staticmethod
     def print_help():
         help_dict = {
-            'GenoTools____v11.07.19____jb40': {
+            'GenoTools____v05.08.19____jb40': {
                 Message('Monitors Qiaxcel and Viia7 and notifies when runs complete.\n'
                         '  Auto-processes Qiaxcel gel images and Viia7 export files.\n\n'
                         '   Files with your username will generate a notification.\n'
@@ -490,25 +527,32 @@ class InputLoop(Thread):
 
 
 class StatusCheck(object):
+    """
+    This class contains and changes most of the state variables.
+    """
     def __init__(self):
-        self.date = time.strftime("%b %Y", time.localtime())
+        self.date = time.strftime("%b %Y", time.localtime())  # for checking when month changes
 
         self.qiaxcel_path = config['File paths']['QIAxcel']
-        self.experiment_path = self.get_path("Experiments")  # Path to current month
+        self.experiment_path = self.get_path("Experiments")  # Path to current month viia7
         self.export_path = self.get_path("Export")
-        self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month
+        self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month viia7
         self.export_path_last = self.get_path("Export", last_month=True)
 
-        self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)
+        self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)  # Schedule observer watch locations
         self.experiment_watch_curr = observer.schedule(labhandler, path=self.experiment_path)
         self.export_watch_curr = observer.schedule(labhandler, path=self.export_path)
         self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last) \
             if self.experiment_path_last is not None else False
         self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
             if self.export_path_last is not None else False
+
         self.message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
 
     def update_month(self):
+        """
+        Called when the month has changed. Updates which folders are being watched for file changes.
+        """
         self.date = time.strftime("%b %Y", time.localtime())  # Update month
         print('The month has changed to ' + self.date)
         self.experiment_path = self.get_path("Experiments")  # Get new path
@@ -524,6 +568,11 @@ class StatusCheck(object):
 
     @staticmethod
     def check_update():
+        """
+        A method to make this program close on other peoples machines by setting an update time frame
+        in the config.ini. This is possible and necessary because this program is normally run from
+        an exe on a network share, therefore cannot update if it is in use.
+        """
         config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # may have changed.
         start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
         end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
@@ -534,6 +583,13 @@ class StatusCheck(object):
             raise KeyboardInterrupt
 
     def get_path(self, folder, last_month=False):
+        """
+        Gets this or last month's file path for Experiments or Results export.
+        Month abbreviations are sometimes set by people and therefore don't follow a consistent scheme.
+        :param folder: str 'Experiments' or 'Export'
+        :param last_month: bool if true returns path for last month.
+        :return: str file path see build_path()
+        """
         makedirs = True
         date_t = date.today()
         if last_month:
@@ -560,6 +616,13 @@ class StatusCheck(object):
 
     @staticmethod
     def build_path(month, year, folder):
+        """
+        Builds the file path from base path from config.ini and parameters
+        :param month:
+        :param year:
+        :param folder: str 'Experiments' or 'Export'
+        :return: str file path '\\file01-s0\\Team121\\Genotyping\\qPCR 2019\\Experiments\\Aug 2019'
+        """
         if folder == "Experiments":
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Experiments\\' + month + ' ' + year
         if folder == "Export":
@@ -576,9 +639,11 @@ class StatusCheck(object):
 
 
 class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
-    """This class is used to catch an uncatchable exception in watchdog
-        that would occur when the connection to the network drive was
-        temporarily lost"""
+    """
+    This class is used to catch an uncatchable exception in watchdog
+    that would occur when the connection to the network drive was
+    temporarily lost
+    """
     def queue_events(self, timeout):  # Subclass queue events - this is where the exception occurs
         try:
             super().queue_events(timeout)

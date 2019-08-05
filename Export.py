@@ -291,8 +291,8 @@ class Export(object):
             plate2.remove('data')
         except ValueError:
             pass
-        users = {'jb40', 'db11', 'es16', 'sa24', 'dg4', 'er1', 'db7', getlogin()}
-
+        users = self.config['Users']['users']
+        users.append(getlogin())
         user, plates, assays_etc, plates_small = [], [], [], []
         for item in plate2:
             if item in users:

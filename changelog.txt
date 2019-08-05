@@ -120,3 +120,7 @@ Changelog for LabHelper project
     Fixed distinguished prints to use '>>>' again
     Added comments to MyEmitter class
     Update exe
+
+05.08.2019
+    Commented many functions for future maintainers
+    Moved list of users to config.ini
