@@ -292,7 +292,7 @@ class Export(object):
         except ValueError:
             pass
         users = self.config['Users']['users'].split(',')
-        users = users.append(getlogin())
+        users.append(getlogin())
         user, plates, assays_etc, plates_small = [], [], [], []
         for item in plate2:
             if item in users:
