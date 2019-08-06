@@ -21,5 +21,5 @@ setup(
     options=options,
     version="1.0",
     description="Tool for T121 Genotypers at Sanger",
-    executables=executables, requires=['colorama', 'watchdog', 'pandas', 'pillow']
+    executables=executables, requires=['colorama', 'watchdog', 'pandas', 'numpy', 'pillow']
 )
