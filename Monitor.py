@@ -26,7 +26,7 @@ except ModuleNotFoundError:
 
 
 class Counter(object):
-    # A counter for when to recieve notifications. There is one counter for each machine.
+    # A counter for when to receive notifications. There is one counter for each machine.
     def __init__(self, machine=''):
         self._count = 0
         self._show = True  # whether to show notifications or not
@@ -524,14 +524,15 @@ class InputLoop(Thread):
 
     def stop(self):
         self._stopping = True
-        observer.stop()
+        watch.stop_observe()
 
 
-class StatusCheck(object):
+class Watcher(object):
     """
     This class contains and changes most of the state variables.
     """
     def __init__(self):
+        self.obs = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
         self.date = time.strftime("%b %Y", time.localtime())  # for checking when month changes
 
         self.qiaxcel_path = config['File paths']['QIAxcel']
@@ -540,12 +541,12 @@ class StatusCheck(object):
         self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month viia7
         self.export_path_last = self.get_path("Export", last_month=True)
 
-        self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)  # Schedule observer watch locations
-        self.experiment_watch_curr = observer.schedule(labhandler, path=self.experiment_path)
-        self.export_watch_curr = observer.schedule(labhandler, path=self.export_path)
-        self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last) \
+        self.qiaxcel_watch = self.obs.schedule(labhandler, path=self.qiaxcel_path)  # Schedule observer watch locations
+        self.experiment_watch_curr = self.obs.schedule(labhandler, path=self.experiment_path)
+        self.export_watch_curr = self.obs.schedule(labhandler, path=self.export_path)
+        self.experiment_watch_last = self.obs.schedule(labhandler, path=self.experiment_path_last) \
             if self.experiment_path_last is not None else False
-        self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
+        self.export_watch_last = self.obs.schedule(labhandler, path=self.export_path_last) \
             if self.export_path_last is not None else False
 
         self.message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
@@ -559,13 +560,13 @@ class StatusCheck(object):
         self.experiment_path = self.get_path("Experiments")  # Get new path
         self.export_path = self.get_path("Export")
         if self.experiment_watch_last:
-            observer.unschedule(self.experiment_watch_last)  # Unschedule last month watch
+            self.obs.unschedule(self.experiment_watch_last)  # Unschedule last month watch
         if self.export_watch_last:
-            observer.unschedule(self.export_watch_last)
+            self.obs.unschedule(self.export_watch_last)
         self.experiment_watch_last = self.experiment_watch_curr  # Make current month watch last month
         self.export_watch_last = self.export_watch_curr
-        self.experiment_watch_curr = observer.schedule(labhandler, self.experiment_path)  # Schedule new current month
-        self.export_watch_curr = observer.schedule(labhandler, self.export_path)
+        self.experiment_watch_curr = self.obs.schedule(labhandler, self.experiment_path)  # Schedule new current month
+        self.export_watch_curr = self.obs.schedule(labhandler, self.export_path)
 
     @staticmethod
     def check_update():
@@ -638,6 +639,20 @@ class StatusCheck(object):
             print(msg)
             self.message.append(msg)
 
+    def start_observe(self):
+        self.obs.start()
+        print(self.obs.is_alive())
+
+    def stop_observe(self):
+        self.obs.unschedule_all()
+        self.obs.stop()
+        print(self.obs.is_alive())
+
+    def restart_observers(self):
+        self.__init__()
+        self.obs.start()
+        print(self.obs.is_alive())
+
 
 class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
     """
@@ -649,17 +664,17 @@ class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
         try:
             super().queue_events(timeout)
         except OSError as e:    # Catch the exception and print error
-            status.thread_print(str(e))
-            status.thread_print('Lost connection to team drive!')
+            watch.thread_print(str(e))
+            watch.thread_print('Lost connection to team drive!')
             connected = False
             while not connected:  # resume when connection to network drive is restored
                 try:
                     self.on_thread_start()  # need to re-set the directory handle.
                     connected = True
-                    status.thread_print('Reconnected!')
+                    watch.thread_print('Reconnected!')
                 except OSError:
                     time.sleep(10)
-                    status.thread_print('Reconnecting...')
+                    watch.thread_print('Reconnecting...')
 
 
 if __name__ == '__main__':
@@ -672,24 +687,24 @@ if __name__ == '__main__':
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
     export = Export.Export()
-    observer = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
-    in_loop = InputLoop()
-    status = StatusCheck()
 
-    observer.start()  # Start threads
+    in_loop = InputLoop()
+    watch = Watcher()
+
+    watch.start_observe()  # Start threads
     egel_watcher.start()
     in_loop.start()
 
     try:
         while True:  # Check if something has changed
-            if status.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
-                status.update_month()
+            if watch.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
+                watch.update_month()
             for i in range(300):
-                if not observer.is_alive():
+                if not watch.obs.is_alive():
                     raise KeyboardInterrupt
-                status.check_update()
+                watch.check_update()
                 time.sleep(4)
     except KeyboardInterrupt:  # on keyboard interrupt (Ctrl + C)
-        observer.stop()  # Stop observer + Threads (if alive)
+        watch.obs.stop()  # Stop observer + Threads (if alive)
         egel_watcher.stop()
         print('\nbye!')
