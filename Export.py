@@ -16,6 +16,7 @@ from Monitor import Message
 class Export(object):
 
     def __init__(self):
+        """Initialise the exporter. Loading files here means they only need to be loaded once."""
         self.cols_order = ['Well ', 'Omitted ', 'Sample', 'Target', 'Reporter', 'RQ   ', 'Cт', 'ΔCт', 'ΔΔCт', 'Mouse',
                            'Genotype', 'Allele', 'Locked', 'Plate Barcode', 'Assay Type', 'Assay Name', 'Result',
                            'Confirmed', 'Comment', 'Name', 'Compare', 'Gender', 'Het Control?', 'X-Linked?',
@@ -32,6 +33,10 @@ class Export(object):
         self._multi_export = False      # Bool
 
     def new(self, inp: str):
+        """
+        This is called by Monitor.Labhandler.On_Created(), and takes the input from csv through to completed file.
+        :param inp: file path of exported csv.
+        """
         self.inp = inp
         self.samples = self.read_file()
         self.read_endo_ctrl()
@@ -55,9 +60,7 @@ class Export(object):
             print(e)
 
     def read_file(self):
-        """
-        Reads the file given as input and returns a dataframe. Only accepts columns in the first 9 of cols_order.
-        """
+        """Reads the file given as input and returns a dataframe. Only accepts columns in the first 9 of cols_order."""
         params = [(14, "\t"), (15, "\t"), (14, ","), (15, ",")]  # list of parameters to try
         for header, sep in params:
             try:
@@ -94,9 +97,7 @@ class Export(object):
         self.samples = pd.merge(self.samples, endos, on='Well ', how='inner')  # Merge endos with samples
 
     def read_formulas(self):
-        """
-        Loads excel formulas used from a file, calls get_formula_sub to format them and sets the finished formulas
-        """
+        """Loads excel formulas used from a file, calls get_formula_sub to format them and sets the finished formulas"""
         try:
             wb = load_workbook(self.config['File paths']['Formulas'])
         except FileNotFoundError:
@@ -109,9 +110,7 @@ class Export(object):
 
     @staticmethod
     def get_formula_sub(formula):
-        """
-        Takes in a formula, splits it and replaces the row number with a sub string {0} for later use.
-        """
+        """Takes in a formula, splits it and replaces the row number with a sub string {0} for later use."""
         from openpyxl.formula import Tokenizer
         formula_sub = "="
         for t in Tokenizer(formula).items:  # Tokenizer is part of openpyxl
@@ -123,9 +122,7 @@ class Export(object):
         return formula_sub
 
     def read_assay_file(self):
-        """
-        Reads the assay file and returns a dataframe. The assay file path is specified in config.ini
-        """
+        """Reads the assay file and returns a dataframe. The assay file path is specified in config.ini"""
         try:
             assays = pd.read_csv(self.config['File paths']['assays'], sep='\t')  # reads file.
             assays['Variant'] = assays['Variant'].str.lower()  # sets variant col to lower-case
@@ -136,18 +133,15 @@ class Export(object):
             quit()
 
     def separate_ctrls(self):
-        """
-        regular expression to pattern match a mouse or blastocyst in the form ~PMGB11.2a or M02983000
-        """
+        """ Move controls out of the samples df and into a ctrls df, and sort.
+        Regular expression pattern matches a mouse or blastocyst in the form ~PMGB11.2a or M02983000"""
         regex = '[a-z]{3,4}\\d{1,3}\\.\\d{1,2}[a-z]|m\\d{8}'
         self.ctrls = self.samples.loc[~self.samples['Sample'].str.lower().str.contains(regex)]  # Move ctrls to new df
         self.samples = self.samples.loc[self.samples['Sample'].str.lower().str.contains(regex)]  # Remove ctrls from df
         self.ctrls = self.ctrls.sort_values(by=['Target', 'Sample'])
 
     def assay_type(self, line):
-        """
-        Determines if the assay type is LoA or qPCR. List of assays is read in from a file.
-        """
+        """Determines if the assay type is LoA or qPCR. List of assays is read in from a file."""
         target = line['Target'].lower()
         if target in self.assay_df['Variant']:      # If the target is in list of assays, set assay type accordingly.
             return self.assay_df.loc[target, 'Type']
@@ -201,9 +195,7 @@ class Export(object):
 
     @staticmethod
     def is_transgene(line):
-        """
-        If the assay is a transgene assay, returns Transgene. The excel formula will adjust the analysis accordingly.
-        """
+        """If the assay is a transgene assay, returns Transgene. The excel formula adjusts the analysis accordingly."""
         target = line['Assay Name'].upper()
         if "_TG" in target:
             return "Transgene"
@@ -237,11 +229,7 @@ class Export(object):
 
     @multi.setter
     def multi(self, value):
-        """
-        Sets _multi_export flag with value, if value is none, toggles _multi_export. Prints multi.
-        :param value:
-        :return:
-        """
+        # Sets _multi_export flag with value, if value is none, toggles _multi_export. Prints multi.
         if value is not None:
             if not self._multi_export == value:  # Only change value (and print) if value changes
                 self._multi_export = value
@@ -261,9 +249,7 @@ class Export(object):
         print("Exporting to last exported file.")
 
     def to_file(self):
-        """
-        Allows Input of a specific xlsx file to export to.
-        """
+        # Allows Input of a specific xlsx file to export to.
         from Monitor import InputLoop
         print('Enter a target file (.xlsx) or type stop to cancel')
         while True:
@@ -280,9 +266,7 @@ class Export(object):
             print('Thanks. You can now export your files, or paste the file path here.')
 
     def get_sheet_name(self):
-        """
-        Parses the file name and shortens it to <32 chars so it can be used as the sheet name in excel.
-        """
+        """Parses the file name and shortens it to <32 chars so it can be used as the sheet name in excel."""
         plate = str(path.split(path.splitext(self.inp)[0])[1])  # not sure why or if str is needed, but pycharm likes it
         plate_barcode = r'^c0000\d{5}' + r'|^sl000\d{5}' + r'|^\d{5}'
         rex = re.compile(plate_barcode, re.IGNORECASE)
@@ -291,28 +275,30 @@ class Export(object):
             plate2.remove('data')
         except ValueError:
             pass
+        # It is difficult to separate user names from gene names like cd4 etc, so we use a list of usernames.
         users = self.config['Users']['users'].split(',')
         users.append(getlogin())
-        user, plates, assays_etc, plates_small = [], [], [], []
+        user, plates, assays_etc, plates_small = [], [], [], []  # 4 lists representing what the filename is split into
         for item in plate2:
-            if item in users:
+            if item in users:  # If the element is a username add to user list
                 user.append(item)
                 continue
-            match = rex.match(item)
+            match = rex.match(item)  # If the item is a barcode, add to plates list
             plates.append(match.group()) if match else assays_etc.append(item)
 
-        for i in plates:
+        for i in plates:  # Make a list of shortened plate names.
             plates_small.append(i.upper().replace('SL000', '').replace('C0000', '')[:5])
 
         final = '_'.join(plates + assays_etc + user)
+        # There is a max sheet name length of 32 chars in excel. Try shortening steps whilst keeping info if possible
+        if len(final) >= 31:    # There is a max sheet name length of 32 chars in excel.
+            final = '_'.join(plates_small + assays_etc + user)  # remove SL000 or C0000
         if len(final) >= 31:
-            final = '_'.join(plates_small + assays_etc + user)
+            final = '_'.join(plates_small[0:1] + assays_etc + user)  # Only use main plate barcode
         if len(final) >= 31:
-            final = '_'.join(plates_small[0:1] + assays_etc + user)
+            final = '_'.join(plates_small[0:1] + assays_etc)  # drop the username
         if len(final) >= 31:
-            final = '_'.join(plates_small[0:1] + assays_etc)
-        if len(final) >= 31:
-            final = final[:31]
+            final = final[:31]  # Truncate.
         return final
 
     def to_xlsx(self):
@@ -329,7 +315,7 @@ class Export(object):
             book = load_workbook(self.xlsx_file)
             writer = pd.ExcelWriter(self.xlsx_file, engine='openpyxl')
             writer.book = book
-            if sheet in book.sheetnames:
+            if sheet in book.sheetnames:  # if the sheet already exists, add a digit on the end.
                 for i in range(1, 100):
                     sheet1 = sheet + str(i)
                     if len(sheet1) > 31:
@@ -348,10 +334,9 @@ class Export(object):
 
         col_width = {'A': 5, 'C': 11, 'J': 11, 'K': 9.14, 'N': 12.57, 'O': 10, 'P': 18, 'R': 10, 'S': 15.14, 'W': 11.43,
                      'Y': 13.43}
-
-        for col in col_width:
+        for col in col_width:  # set column widths
             ws.column_dimensions[col].width = col_width[col]
-            for cell in ws[col]:
+            for cell in ws[col]:    # set center align
                 cell.alignment = Alignment(horizontal='center')
 
         conditions = {'Het': PatternFill(patternType='solid', bgColor='DCE6F0'),
@@ -359,7 +344,7 @@ class Export(object):
                       'Hemi': PatternFill(patternType='lightUp', bgColor='DCE6F0', fgColor='B8CCE4'),
                       'Fail': PatternFill(patternType='solid', bgColor='FFC7CE'),
                       'Retest': PatternFill(patternType='solid', bgColor='FFC7CE')}
-        for genotype in conditions:
+        for genotype in conditions:  # Add conditional formatting
             ws.conditional_formatting.add('K2:K' + str(self.samples.shape[0] + 2),
                                           FormulaRule(formula=['NOT(ISERROR(SEARCH("' + genotype + '",K2)))'],
                                                       stopIfTrue=True, fill=conditions[genotype]))
