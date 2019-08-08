@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-import time
+import configparser
+import os
+from sys import argv
+import re
+
+from time import sleep, strftime, localtime
 from datetime import datetime, date, timedelta
 import ctypes
-import os
 from collections import deque, UserString
 from threading import Lock, Thread
-from sys import argv
-import configparser
-import re
+from io import BytesIO
+import win32clipboard
+
+from watchdog import events, observers
+from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
+from colorama import Fore, Style, init as colorama_init
+from pandas.io import clipboard
+from PIL import ImageGrab
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 
-try:
-    import Export
-    from watchdog import events, observers
-    from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
-    from colorama import Fore, Style, init as colorama_init
-    from pandas.io import clipboard
-    from PIL import ImageGrab
-    from io import BytesIO
-    import win32clipboard
-    import msvcrt
-except ModuleNotFoundError:
-    input("Please install the requirements! \nPress Enter to exit.")
-    quit()
+# import msvcrt
+import Export
 
 
 class Counter(object):
@@ -159,7 +157,7 @@ class Message(UserString):
     @staticmethod
     def bright_time():
         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white()
+        return Message(strftime("%d.%m %H:%M ", localtime())).white()
 
 
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
@@ -189,7 +187,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     def on_modified(self, event):
         """Called when a modified event is detected. aka Viia7 events."""
 
-        time.sleep(1)  # wait here to allow file to be fully written - prevents some errors with os.stat
+        sleep(1)  # wait here to allow file to be fully written - prevents some errors with os.stat
         if '.eds' in event.src_path and event.src_path not in self.recent_events:  # .eds files we haven't seen recently
             if self.is_large_enough(event.src_path):  # this is here instead of ^ to prevent double error message
                 with v_lock:
@@ -203,11 +201,11 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
                 self.q_counter.count = self.notif(event, self.q_counter.count)
         if '.txt' in event.src_path and self.user in event.src_path \
                 and "Export" in event.src_path and self._auto_export:
-            time.sleep(0.3)  # wait here to allow file to be fully written # increase if timeout happens a lot
+            sleep(0.3)  # wait here to allow file to be fully written # increase if timeout happens a lot
             try:
                 export.new(event.src_path)
             except OSError:  # if team drive is being slow, wait longer.
-                time.sleep(4)
+                sleep(4)
                 export.new(event.src_path)
             except ValueError as e:  # When the exported file is bad
                 print(e)
@@ -283,18 +281,32 @@ class Egel(object):
     def grab(self):
         # Retrieves image from clipboard and makes sure the image is the right size
         new = ImageGrab.grabclipboard()
-        assert (new.size[1] in {1575, 788, 504, 394})  # These are the height values for different image dpi levels.
+        # Alternate values may need to be added here, for some reason Shaheen's PC produces an image 1 px
+        # taller than everyone else's (505px). I haven't tested other dpis
+        assert (new.size[1] in {1575, 788, 504, 505, 394})  # These are the height values for different image dpi levels
         self._original = new
 
     def get(self):
-        self.send_to_clipboard(self.crop(crop_type='standard'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='standard'))
+        except AttributeError:
+            print('There is no image loaded')
+            pass
 
     def get_small(self):
         # send both scale and egel to clipboard, if using 'Office Clipboard', may paste both from clipboard history.
-        self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
+        except AttributeError:
+            print('There is no image loaded')
+            pass
 
     def get_scale(self):
-        self.send_to_clipboard(self.crop(crop_type='scale'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='scale'))
+        except AttributeError:
+            print('There is no image loaded')
+            pass
 
     def crop(self, crop_type='standard'):
         # crop is a box within an image defined in pixels (left, top, right, bottom)
@@ -325,7 +337,7 @@ class Egel(object):
             win32clipboard.EmptyClipboard()
             win32clipboard.SetClipboardData(win32clipboard.CF_DIB, item)
             win32clipboard.CloseClipboard()
-            time.sleep(0.05)  # small wait for Office Clipboard.
+            sleep(0.05)  # small wait for Office Clipboard.
         print('Clipboard image processed.')
 
 
@@ -358,7 +370,7 @@ class ClipboardWatcher(Thread):
                 except AssertionError:
                     pass  # given when image is not the right size. Ignore
             else:
-                time.sleep(self._wait)
+                sleep(self._wait)
 
     def toggle(self):
         """
@@ -536,24 +548,23 @@ class Watcher(Thread):
         super().__init__()
         self._stopping = False
         self.obs = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
-        self.date = time.strftime("%b %Y", time.localtime())  # for checking when month changes
-        # TODO are these vars necessary?
-        self.q_path = config['File paths']['QIAxcel']
-        self.experiment_path = self.get_path("Experiments")  # Path to current month viia7
-        self.export_path = self.get_path("Export")
-        self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month viia7
-        self.export_path_last = self.get_path("Export", last_month=True)
+        self.date = strftime("%b %Y", localtime())  # for checking when month changes
+
         self.q_watch = self.experiment_curr = self.export_curr = self.experiment_last = self.export_last = None
         self.set_watch()
 
     def set_watch(self):
-        self.q_watch = self.obs.schedule(labhandler, path=self.q_path)  # Schedule observer watch locations
-        self.experiment_curr = self.obs.schedule(labhandler, path=self.experiment_path)
-        self.export_curr = self.obs.schedule(labhandler, path=self.export_path)
-        self.experiment_last = self.obs.schedule(labhandler, path=self.experiment_path_last) \
-            if self.experiment_path_last is not None else False
-        self.export_last = self.obs.schedule(labhandler, path=self.export_path_last) \
-            if self.export_path_last is not None else False
+        # Schedule observer watch locations
+        self.q_watch = self.obs.schedule(labhandler, path=config['File paths']['QIAxcel'])
+        self.experiment_curr = self.obs.schedule(labhandler, path=self.get_path("Experiments"))
+        self.export_curr = self.obs.schedule(labhandler, path=self.get_path("Export"))
+
+        experiment_path_last = self.get_path("Experiments", last_month=True)
+        export_path_last = self.get_path("Export", last_month=True)
+        self.experiment_last = self.obs.schedule(labhandler, path=experiment_path_last) \
+            if experiment_path_last is not None else False
+        self.export_last = self.obs.schedule(labhandler, path=export_path_last) \
+            if export_path_last is not None else False
 
     def status(self):
         print('Observer Running') if self.obs.is_alive() else print('Observer Stopped')
@@ -561,31 +572,30 @@ class Watcher(Thread):
     def run(self):
         self.start_observe()
         while not self._stopping:  # Check if something has changed
-            if self.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
+            if self.date != strftime("%b %Y", localtime()):  # If month has changed.
                 self.update_month()
             for n in range(300):
                 if n % 5 == 0:
                     self.check_update()
                 if self._stopping:
                     break
-                time.sleep(1)
+                sleep(1)
 
     def update_month(self):
         """
         Called when the month has changed. Updates which folders are being watched for file changes.
         """
-        self.date = time.strftime("%b %Y", time.localtime())  # Update month
+        self.date = strftime("%b %Y", localtime())  # Update month
         print('The month has changed to ' + self.date)
-        self.experiment_path = self.get_path("Experiments")  # Get new path
-        self.export_path = self.get_path("Export")
+
         if self.experiment_last:
             self.obs.unschedule(self.experiment_last)  # Unschedule last month watch
         if self.export_last:
             self.obs.unschedule(self.export_last)
         self.experiment_last = self.experiment_curr  # Make current month watch last month
         self.export_last = self.export_curr
-        self.experiment_curr = self.obs.schedule(labhandler, self.experiment_path)  # Schedule new current month
-        self.export_curr = self.obs.schedule(labhandler, self.export_path)
+        self.experiment_curr = self.obs.schedule(labhandler, self.get_path("Experiments"))  # Schedule new current month
+        self.export_curr = self.obs.schedule(labhandler, self.get_path("Export"))
 
     @staticmethod
     def check_update():
@@ -600,7 +610,7 @@ class Watcher(Thread):
         if start < datetime.now() < end:
             print('Update in progress until ' + datetime.strftime(end, "%d.%m.%y %H:%M "))
             print('Closing in 10 seconds...')
-            time.sleep(10)
+            sleep(10)
             raise KeyboardInterrupt
 
     def get_path(self, folder, last_month=False):
@@ -656,13 +666,13 @@ class Watcher(Thread):
         self._stopping = True
         self.obs.unschedule_all()
         self.obs.stop()
-        time.sleep(1)
+        sleep(1)
         self.status()
 
     def restart_observers(self):
         self.obs.unschedule_all()
         self.obs.stop()
-        time.sleep(2)
+        sleep(2)
         self.status()
 
         self.obs = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
@@ -692,7 +702,7 @@ class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
                     connected = True
                     self.thread_print('Reconnected!')
                 except OSError:
-                    time.sleep(10)
+                    sleep(10)
                     self.thread_print('Reconnecting...')
 
     def thread_print(self, msg):
@@ -727,7 +737,7 @@ if __name__ == '__main__':
             for i in range(300):
                 if not watch.is_alive():
                     raise KeyboardInterrupt
-                time.sleep(4)
+                sleep(4)
     except KeyboardInterrupt:  # on keyboard interrupt (Ctrl + C)
         watch.obs.stop()  # Stop observer + Threads (if alive)
         egel_watcher.stop()

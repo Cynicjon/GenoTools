@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 import configparser
-from os import path, getlogin, startfile
+import os
 from sys import argv
+import re
 
+import PIL
 import numpy as np
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.formatting.rule import FormulaRule
-import re
-import PIL
+
 from Monitor import Message
 
 
@@ -22,7 +23,7 @@ class Export(object):
                            'Confirmed', 'Comment', 'Name', 'Compare', 'Gender', 'Het Control?', 'X-Linked?',
                            'Omitted_endo']
         self.config = configparser.ConfigParser()
-        self.config.read(path.dirname(argv[0]) + '/config.ini')  # read config.ini from same folder the script is in.
+        self.config.read(os.path.dirname(argv[0]) + '/config.ini')  # read config.ini from same folder the script is in.
         self.assay_df = self.read_assay_file()  # Reads Assay info from file
         self.genf, self.assayf, self.confirmf = self.read_formulas()
 
@@ -155,7 +156,7 @@ class Export(object):
             Adding formulas rather than doing the logic in python allows the user to make adjustments."""
 
         self.samples['index'] = range(2, self.samples.shape[0] + 2)  # make index == to excel row number
-        barcode = path.basename(self.inp).split("_")[0].upper()     # get plate barcode from input file path
+        barcode = os.path.basename(self.inp).split("_")[0].upper()     # get plate barcode from input file path
         self.samples['Assay Name'] = self.samples.apply(lambda line: pd.Series([self.assay_name(line)]), axis=1)
         columns_add = {'Mouse': self.samples['Sample'], 'Plate Barcode': barcode,
                        'Allele': np.nan, 'Locked': np.nan, 'Comment': np.nan, 'Name': np.nan,
@@ -220,8 +221,8 @@ class Export(object):
         then multi must have been toggled off recently, and the file is launched etc.
         """
         if not self._multi_export and self.xlsx_file:
-            startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
-            print(Message('Multi Export complete: ' + path.split(self.xlsx_file)[1]).timestamp())
+            os.startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
+            print(Message('Multi Export complete: ' + os.path.split(self.xlsx_file)[1]).timestamp())
             self._last_file = self.xlsx_file
             self.xlsx_file = None
         return Message('Multi export processing ON') if self._multi_export \
@@ -254,7 +255,7 @@ class Export(object):
         print('Enter a target file (.xlsx) or type stop to cancel')
         while True:
             inp = InputLoop.get_input()
-            if path.isfile(inp) and inp[-5:] == '.xlsx':
+            if os.path.isfile(inp) and inp[-5:] == '.xlsx':
                 self.xlsx_file = inp
                 break
             if inp.lower() == 'stop':
@@ -267,7 +268,7 @@ class Export(object):
 
     def get_sheet_name(self):
         """Parses the file name and shortens it to <32 chars so it can be used as the sheet name in excel."""
-        plate = str(path.split(path.splitext(self.inp)[0])[1])  # not sure why or if str is needed, but pycharm likes it
+        plate = str(os.path.split(os.path.splitext(self.inp)[0])[1])  # unsure why or if str() needed, pycharm likes it
         plate_barcode = r'^c0000\d{5}' + r'|^sl000\d{5}' + r'|^\d{5}'
         rex = re.compile(plate_barcode, re.IGNORECASE)
         plate2 = plate.split(sep='_')
@@ -275,9 +276,9 @@ class Export(object):
             plate2.remove('data')
         except ValueError:
             pass
-        # It is difficult to separate user names from gene names like cd4 etc, so we use a list of usernames.
+        # It is difficult to separate user names from gene names like cd4 etc, so we use a list of user names.
         users = self.config['Users']['users'].split(',')
-        users.append(getlogin())
+        users.append(os.getlogin())
         user, plates, assays_etc, plates_small = [], [], [], []  # 4 lists representing what the filename is split into
         for item in plate2:
             if item in users:  # If the element is a username add to user list
@@ -308,9 +309,9 @@ class Export(object):
         """
         sheet = self.get_sheet_name()
         if not self.xlsx_file:
-            self.xlsx_file = path.splitext(self.inp)[0] + '.xlsx'
+            self.xlsx_file = os.path.splitext(self.inp)[0] + '.xlsx'
 
-        if path.isfile(self.xlsx_file):
+        if os.path.isfile(self.xlsx_file):
             self.multi = True
             book = load_workbook(self.xlsx_file)
             writer = pd.ExcelWriter(self.xlsx_file, engine='openpyxl')
@@ -353,7 +354,7 @@ class Export(object):
         if self._multi_export:
             print(Message('Sheet added: ' + sheet).timestamp())
         else:
-            print(Message("Export complete: " + path.split(self.xlsx_file)[1]).timestamp())
+            print(Message("Export complete: " + os.path.split(self.xlsx_file)[1]).timestamp())
             self._last_file = self.xlsx_file
-            startfile(self.xlsx_file)
+            os.startfile(self.xlsx_file)
             self.xlsx_file = None
