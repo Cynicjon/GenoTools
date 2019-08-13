@@ -24,8 +24,8 @@ class Export(object):
                            'Omitted_endo']
         self.config = configparser.ConfigParser()
 
-        if os.path.isfile(os.getcwd() + '/config.ini'): # may have changed.
-            self.config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+        if os.path.isfile(os.getcwd() + '/config.ini'):  # may have changed.
+            self.config.read(os.getcwd() + '/config.ini')
         else:
             self.config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
 

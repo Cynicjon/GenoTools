@@ -518,16 +518,26 @@ class InputLoop(Thread):
         # TODO finish this?
         global local
         if local:
-            print('Aleady installed locally!')
+            print('Already installed locally!')
         else:
             pass
 
     @staticmethod
-    def startup():
-        # TODO this needs looking at to make sure argv doesnt throw exceptions when exe launched via cmd.
-        print("Installing to Startup...")
-        startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\")
+    def startup(silent=False):
+        InputLoop.startup_remove(silent=True)
+
+        global local
+
         name = "Lab Helper.cmd"
+        if not local:
+            if not silent:
+                print('You should install this locally before adding to Startup')
+        else:
+            name = "Lab Helper Local.cmd"
+        if not silent:
+            print("Installing to Startup...")
+        startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows"
+                                          "\\Start Menu\\Programs\\Startup\\")
         with open(startup_path + name, "w+") as f:
             f.write("@echo off\n")
             f.write("cls\n")
@@ -537,24 +547,31 @@ class InputLoop(Thread):
                 else:
                     f.write("start /MIN python" + argv[0])
             else:
-                # f.write("start /MIN " + argv[0])
                 if os.path.isfile(os.getcwd() + '/Monitor.py'):
                     f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
                 else:
                     f.write("start /MIN " + argv[0])
-
-        print(Message("Done!").green())
+        if not silent:
+            print(Message("Done!").green())
 
     @staticmethod
-    def startup_remove():
-        print('Removing from Startup...')
-        startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"
-                                          "\\Startup\\Lab Helper.cmd")
+    def startup_remove(silent=False):
+        if not silent:
+            print('Removing from Startup...')
+        startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                          "Start Menu\\Programs\\Startup\\Lab Helper.cmd")
+        startup_file_local = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                                "Start Menu\\Programs\\Startup\\Lab Helper.cmd")
         try:
             os.remove(startup_file)
-            print(Message("Removed.").green())
+            if not silent:
+                print(Message("Removed.").green())
         except FileNotFoundError:
-            print('File not found!')
+            try:
+                os.remove(startup_file_local)
+            except FileNotFoundError:
+                if not silent:
+                    print('File not found!')
 
     def stop(self):
         self._stopping = True
@@ -628,8 +645,8 @@ class Watcher(Thread):
         in the config.ini. This is possible and necessary because this program is normally run from
         an exe on a network share, therefore cannot update if it is in use.
         """
-        if os.path.isfile(os.getcwd() + '/config.ini'): # may have changed.
-            config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+        if os.path.isfile(os.getcwd() + '/config.ini'):  # may have changed.
+            config.read(os.getcwd() + '/config.ini')
         else:
             config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
 
@@ -767,6 +784,11 @@ if __name__ == '__main__':
     local = True if win32file.GetDriveType(os.getcwd().split(':')[0] + ':') == 3 else False
     if not local:
         print('You may wish to install this program to your computer to prevent possible crashes')
+    else:  # if we are running locally and a startup entry exists for the remote version, we should
+        # replace it with the local version.
+        if os.path.isfile(os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                             "Start Menu\\Programs\\Startup\\Lab Helper.cmd")):
+            InputLoop.startup(silent=True)
 
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
