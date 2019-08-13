@@ -11,6 +11,7 @@ from collections import deque, UserString
 from threading import Lock, Thread
 from io import BytesIO
 import win32clipboard
+import win32file
 
 from watchdog import events, observers
 from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
@@ -19,8 +20,10 @@ from pandas.io import clipboard
 from PIL import ImageGrab
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 
-# import msvcrt
 import Export
+
+__version__ = '13.08.2019'
+# TODO fix Message spacing.
 
 
 class Counter(object):
@@ -410,7 +413,7 @@ class InputLoop(Thread):
             egel_watcher.image.get_scale: ['scale'],
             egel_watcher.image.get: ['egel'],
             egel_watcher.image.get_small: ['small'],
-            self.startup: ['install', 'setup'],
+            self.startup: ['install', 'setup', 'startup'],
             self.startup_remove: ['delete', 'uninstall'],
             self.stop: ['quit', 'exit', 'QQ', 'quti'],
             self.print_help: ['help', 'hlep'],
@@ -511,7 +514,17 @@ class InputLoop(Thread):
                 print(Message(' ' + command).white2().ljust(25, ' ') + Message(help_dict[heading][command]))
 
     @staticmethod
+    def install_local():
+        # TODO finish this?
+        global local
+        if local:
+            print('Aleady installed locally!')
+        else:
+            pass
+
+    @staticmethod
     def startup():
+        # TODO this needs looking at to make sure argv doesnt throw exceptions when exe launched via cmd.
         print("Installing to Startup...")
         startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\")
         name = "Lab Helper.cmd"
@@ -522,6 +535,7 @@ class InputLoop(Thread):
                 f.write("start /MIN python " + argv[0])
             else:
                 f.write("start /MIN " + argv[0])
+                # f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
         print(Message("Done!").green())
 
     @staticmethod
@@ -542,7 +556,7 @@ class InputLoop(Thread):
 
 class Watcher(Thread):
     """
-    This class contains and changes most of the state variables.
+    This class contains all observer functionality and checks and changes the state.
     """
     def __init__(self):
         super().__init__()
@@ -570,12 +584,15 @@ class Watcher(Thread):
         print('Observer Running') if self.obs.is_alive() else print('Observer Stopped')
 
     def run(self):
+        global local
         self.start_observe()
         while not self._stopping:  # Check if something has changed
+            if local:
+                self.check_update_local()
             if self.date != strftime("%b %Y", localtime()):  # If month has changed.
                 self.update_month()
-            for n in range(300):
-                if n % 5 == 0:
+            for n in range(600):  # a 10 minute loop
+                if n % 30 == 0:  # every 30 seconds
                     self.check_update()
                 if self._stopping:
                     break
@@ -604,7 +621,7 @@ class Watcher(Thread):
         in the config.ini. This is possible and necessary because this program is normally run from
         an exe on a network share, therefore cannot update if it is in use.
         """
-        config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # may have changed.
+        config.read(os.getcwd() + '/config.ini')  # may have changed.
         start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
         end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
         if start < datetime.now() < end:
@@ -612,6 +629,13 @@ class Watcher(Thread):
             print('Closing in 10 seconds...')
             sleep(10)
             raise KeyboardInterrupt
+
+    @staticmethod
+    def check_update_local():
+        master = configparser.ConfigParser()
+        master.read(config['File paths']['master'] + '/config.ini')
+        if not master['Update']['Version'] == __version__:
+            print('Please update to the latest version of the program!')
 
     def get_path(self, folder, last_month=False):
         """
@@ -683,9 +707,13 @@ class Watcher(Thread):
 
 class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
     """
-    This class is used to catch an uncatchable exception in watchdog
+    This class is used to catch an un-catchable exception in watchdog
     that would occur when the connection to the network drive was
     temporarily lost
+    This can still sometimes cause a crash if the program is run from
+    the network drive, but this is to do with the build method of the
+    exe. A single exe build may fix but antivirus prevents it.
+    Currently recommend installing to a local drive C:// - not U://
     """
     message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
 
@@ -720,7 +748,11 @@ if __name__ == '__main__':
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
     config = configparser.ConfigParser()
-    config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # config.ini = ANSI
+    config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+
+    local = True if win32file.GetDriveType(os.getcwd().split(':')[0] + ':') == 3 else False
+    if not local:
+        print('You may wish to install this program to your computer to prevent possible crashes')
 
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
