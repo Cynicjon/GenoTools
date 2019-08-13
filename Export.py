@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import configparser
 import os
+from sys import argv
 import re
 
 import PIL
@@ -22,7 +23,12 @@ class Export(object):
                            'Confirmed', 'Comment', 'Name', 'Compare', 'Gender', 'Het Control?', 'X-Linked?',
                            'Omitted_endo']
         self.config = configparser.ConfigParser()
-        self.config.read(os.getcwd() + '/config.ini')
+
+        if os.path.isfile(os.getcwd() + '/config.ini'): # may have changed.
+            self.config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+        else:
+            self.config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
+
         self.assay_df = self.read_assay_file()  # Reads Assay info from file
         self.genf, self.assayf, self.confirmf = self.read_formulas()
 

@@ -131,3 +131,5 @@ Changelog for LabHelper project
     If running from remote drive display recommendation to install locally
     If installed locally, check remote drive for update and periodically display reminder.
 
+    Can installing to startup now works properly regardless of how the program was launched.
+

@@ -532,10 +532,17 @@ class InputLoop(Thread):
             f.write("@echo off\n")
             f.write("cls\n")
             if '.py' in argv[0]:
-                f.write("start /MIN python " + argv[0])
+                if os.path.isfile(os.getcwd() + '/Monitor.py'):
+                    f.write("start /MIN python " + os.getcwd() + '/Monitor.py')
+                else:
+                    f.write("start /MIN python" + argv[0])
             else:
-                f.write("start /MIN " + argv[0])
-                # f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
+                # f.write("start /MIN " + argv[0])
+                if os.path.isfile(os.getcwd() + '/Monitor.py'):
+                    f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
+                else:
+                    f.write("start /MIN " + argv[0])
+
         print(Message("Done!").green())
 
     @staticmethod
@@ -621,7 +628,11 @@ class Watcher(Thread):
         in the config.ini. This is possible and necessary because this program is normally run from
         an exe on a network share, therefore cannot update if it is in use.
         """
-        config.read(os.getcwd() + '/config.ini')  # may have changed.
+        if os.path.isfile(os.getcwd() + '/config.ini'): # may have changed.
+            config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+        else:
+            config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
+
         start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
         end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
         if start < datetime.now() < end:
@@ -748,7 +759,10 @@ if __name__ == '__main__':
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
     config = configparser.ConfigParser()
-    config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+    if os.path.isfile(os.getcwd() + '/config.ini'):
+        config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+    else:
+        config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
 
     local = True if win32file.GetDriveType(os.getcwd().split(':')[0] + ':') == 3 else False
     if not local:
