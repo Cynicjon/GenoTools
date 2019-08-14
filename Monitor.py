@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-import time
+import configparser
+import os
+from sys import argv
+import re
+
+from time import sleep, strftime, localtime
 from datetime import datetime, date, timedelta
 import ctypes
-import os
 from collections import deque, UserString
 from threading import Lock, Thread
-from sys import argv
-import configparser
-import re
+from io import BytesIO
+import win32clipboard
+import win32file
+
+from watchdog import events, observers
+from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
+from colorama import Fore, Style, init as colorama_init
+from pandas.io import clipboard
+from PIL import ImageGrab
 import PIL  # required by openpyxl to allow handling of xlsx files with images in them
 
-try:
-    import Export
-    from watchdog import events, observers
-    from watchdog.observers.api import DEFAULT_OBSERVER_TIMEOUT, BaseObserver
-    from colorama import Fore, Style, init as colorama_init
-    from pandas.io import clipboard
-    from PIL import ImageGrab
-    from io import BytesIO
-    import win32clipboard
-    import msvcrt
-except ModuleNotFoundError:
-    input("Please install the requirements! \nPress Enter to exit.")
-    quit()
+import Export
+
+__version__ = '14.08.2019'
 
 
 class Counter(object):
-    # A counter for when to recieve notifications. There is one counter for each machine.
+    # A counter for when to receive notifications. There is one counter for each machine.
     def __init__(self, machine=''):
         self._count = 0
         self._show = True  # whether to show notifications or not
@@ -46,7 +46,7 @@ class Counter(object):
 
     @property
     def show(self):
-        return ''.ljust(19, ' ') + self._machine + (' Displaying' if self._show else ' Hiding') + ' events'
+        return Message(''.ljust(25, ' ') + self._machine + (' Displaying' if self._show else ' Hiding') + ' events')
 
     @show.setter
     def show(self, value):
@@ -57,11 +57,12 @@ class Counter(object):
     def notify_setting(self):
         """return the current Notify setting"""
         if 0 < self.count < 10:
-            return ''.ljust(19, ' ') + self._machine + ' Notifying in ' + str(self.count) + ' runs time'
+            return ''.ljust(25, ' ') + self._machine + ' Notifying in ' + Message(str(self.count)).white() \
+                   + ' runs time'
         if self.count > 9:
-            return ''.ljust(19, ' ') + self._machine + ' Notifying for all runs'
+            return ''.ljust(25, ' ') + self._machine + ' Notifying for ' + Message('ALL').white() + ' runs'
         elif self.count < 1:
-            return ''.ljust(19, ' ') + self._machine + ' Notify OFF'
+            return ''.ljust(25, ' ') + self._machine + ' Notify OFF'
 
 
 class Message(UserString):
@@ -138,13 +139,11 @@ class Message(UserString):
         :return: Message() : Highlighted message
         """
         # TODO could this make use of the __str__ method?
-        pad = 11  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
-        if machine:
-            pad += 9
-            if machine == 'Viia7':
-                machine = Message(machine).cyan()
-            else:
-                machine = Message(machine).magenta()
+        pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        if machine:  # None, Viia7, Qiaxcel or Export
+            if machine == 'Viia7' or machine == 'Qiaxcel':
+                pad += 9
+                machine = Message(machine)
 
         if distinguish:
             pad += 9
@@ -159,7 +158,7 @@ class Message(UserString):
     @staticmethod
     def bright_time():
         """Returns the current time formatted nicely, flanked by ANSI escape codes for bright text."""
-        return Message(time.strftime("%d.%m %H:%M ", time.localtime())).white()
+        return Message(strftime("%d.%m %H:%M ", localtime())).white()
 
 
 class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdog's PatternMatchingEventHandler
@@ -189,7 +188,7 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
     def on_modified(self, event):
         """Called when a modified event is detected. aka Viia7 events."""
 
-        time.sleep(1)  # wait here to allow file to be fully written - prevents some errors with os.stat
+        sleep(1)  # wait here to allow file to be fully written - prevents some errors with os.stat
         if '.eds' in event.src_path and event.src_path not in self.recent_events:  # .eds files we haven't seen recently
             if self.is_large_enough(event.src_path):  # this is here instead of ^ to prevent double error message
                 with v_lock:
@@ -203,11 +202,11 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
                 self.q_counter.count = self.notif(event, self.q_counter.count)
         if '.txt' in event.src_path and self.user in event.src_path \
                 and "Export" in event.src_path and self._auto_export:
-            time.sleep(0.3)  # wait here to allow file to be fully written # increase if timeout happens a lot
+            sleep(0.3)  # wait here to allow file to be fully written # increase if timeout happens a lot
             try:
                 export.new(event.src_path)
             except OSError:  # if team drive is being slow, wait longer.
-                time.sleep(4)
+                sleep(4)
                 export.new(event.src_path)
             except ValueError as e:  # When the exported file is bad
                 print(e)
@@ -236,25 +235,25 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
                 print(Message(message).timestamp(machine))
 
         if x_counter == 1:  # If this was the run to notify on, inform that notification is now off.
-            print(''.ljust(19, ' ') + machine + ' No longer notifying.')
+            print(''.ljust(25, ' ') + machine + ' No longer notifying.')
 
         return x_counter - 1  # Increment counter down
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print(Message('Auto export processing ON')) if self._auto_export \
-            else print(Message('Auto export processing OFF'))
+        print(''.ljust(25, ' ') + Message('Auto export processing ON')) if self._auto_export \
+            else print(''.ljust(25, ' ') + Message('Auto export processing OFF'))
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only \
-            else print('Displaying ' + Message('ALL').white() + ' events')
+        print(''.ljust(25, ' ') + 'Displaying ' + Message('YOUR').white() + ' events only') if self._user_only \
+            else print(''.ljust(25, ' ') + 'Displaying ' + Message('ALL').white() + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ' + Message('ALL').white() + ' events')
+        print(''.ljust(25, ' ') + 'Displaying ' + Message('ALL').white() + ' events')
 
     @staticmethod
     def get_event_info(event):
@@ -283,18 +282,32 @@ class Egel(object):
     def grab(self):
         # Retrieves image from clipboard and makes sure the image is the right size
         new = ImageGrab.grabclipboard()
-        assert (new.size[1] in {1575, 788, 504, 394})  # These are the height values for different image dpi levels.
+        # Alternate values may need to be added here, for some reason Shaheen's PC produces an image 1 px
+        # taller than everyone else's (505px). I haven't tested other dpis
+        assert (new.size[1] in {1575, 788, 504, 505, 394})  # These are the height values for different image dpi levels
         self._original = new
 
     def get(self):
-        self.send_to_clipboard(self.crop(crop_type='standard'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='standard'))
+        except AttributeError:
+            print(''.ljust(25, ' ') + 'There is no image loaded')
+            pass
 
     def get_small(self):
         # send both scale and egel to clipboard, if using 'Office Clipboard', may paste both from clipboard history.
-        self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
+        except AttributeError:
+            print(''.ljust(25, ' ') + 'There is no image loaded')
+            pass
 
     def get_scale(self):
-        self.send_to_clipboard(self.crop(crop_type='scale'))
+        try:
+            self.send_to_clipboard(self.crop(crop_type='scale'))
+        except AttributeError:
+            print(''.ljust(25, ' ') + 'There is no image loaded')
+            pass
 
     def crop(self, crop_type='standard'):
         # crop is a box within an image defined in pixels (left, top, right, bottom)
@@ -325,7 +338,7 @@ class Egel(object):
             win32clipboard.EmptyClipboard()
             win32clipboard.SetClipboardData(win32clipboard.CF_DIB, item)
             win32clipboard.CloseClipboard()
-            time.sleep(0.05)  # small wait for Office Clipboard.
+            sleep(0.05)  # small wait for Office Clipboard.
         print('Clipboard image processed.')
 
 
@@ -358,7 +371,7 @@ class ClipboardWatcher(Thread):
                 except AssertionError:
                     pass  # given when image is not the right size. Ignore
             else:
-                time.sleep(self._wait)
+                sleep(self._wait)
 
     def toggle(self):
         """
@@ -368,10 +381,10 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print(Message('Clipboard watcher OFF'))
+            print(Message(''.ljust(25, ' ') + 'Clipboard watcher OFF'))
         else:
             self._wait = 2.
-            print(Message('Clipboard watcher ON'))
+            print(Message(''.ljust(25, ' ') + 'Clipboard watcher ON'))
 
     def stop(self):
         self._stopping = True
@@ -398,10 +411,11 @@ class InputLoop(Thread):
             egel_watcher.image.get_scale: ['scale'],
             egel_watcher.image.get: ['egel'],
             egel_watcher.image.get_small: ['small'],
-            self.startup: ['install', 'setup'],
+            self.startup: ['install', 'setup', 'startup'],
             self.startup_remove: ['delete', 'uninstall'],
             self.stop: ['quit', 'exit', 'QQ', 'quti'],
-            self.print_help: ['help', 'hlep']
+            self.print_help: ['help', 'hlep'],
+            watch.restart_observers: ['restart'],
         }
 
     def run(self):
@@ -440,7 +454,7 @@ class InputLoop(Thread):
                         continue
                     with q_lock:  # lock to make referencing variable shared between threads safe.
                         labhandler.q_counter.count = count
-                        print(labhandler.q_counter.notify_setting)
+                        print(Message(labhandler.q_counter.notify_setting))
                 if 'v' in inp:
                     if 'hide' in inp:
                         labhandler.v_counter.show = ''
@@ -448,7 +462,7 @@ class InputLoop(Thread):
                         continue
                     with v_lock:
                         labhandler.v_counter.count = count
-                        print(labhandler.v_counter.notify_setting)
+                        print(Message(labhandler.v_counter.notify_setting))
 
     @staticmethod
     def get_input():
@@ -466,7 +480,7 @@ class InputLoop(Thread):
     @staticmethod
     def print_help():
         help_dict = {
-            'GenoTools____v05.08.19____jb40': {
+            'GenoTools____v' + __version__ + '____jb40': {
                 Message('Monitors Qiaxcel and Viia7 and notifies when runs complete.\n'
                         '  Auto-processes Qiaxcel gel images and Viia7 export files.\n\n'
                         '   Files with your username will generate a notification.\n'
@@ -498,74 +512,120 @@ class InputLoop(Thread):
                 print(Message(' ' + command).white2().ljust(25, ' ') + Message(help_dict[heading][command]))
 
     @staticmethod
-    def startup():
-        print("Installing to Startup...")
-        startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\")
+    def startup(silent=False):
+        InputLoop.startup_remove(silent=True)
+
+        global local
+
         name = "Lab Helper.cmd"
+        if not local:
+            if not silent:
+                print('You should install this locally before adding to Startup')
+        else:
+            name = "Lab Helper Local.cmd"
+        if not silent:
+            print("Installing to Startup...")
+        startup_path = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows"
+                                          "\\Start Menu\\Programs\\Startup\\")
         with open(startup_path + name, "w+") as f:
             f.write("@echo off\n")
             f.write("cls\n")
             if '.py' in argv[0]:
-                f.write("start /MIN python " + argv[0])
+                if os.path.isfile(os.getcwd() + '/Monitor.py'):
+                    f.write("start /MIN python " + os.getcwd() + '/Monitor.py')
+                else:
+                    f.write("start /MIN python" + argv[0])
             else:
-                f.write("start /MIN " + argv[0])
-        print(Message("Done!").green())
+                if os.path.isfile(os.getcwd() + '/Monitor.py'):
+                    f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
+                else:
+                    f.write("start /MIN " + argv[0])
+        if not silent:
+            print(Message("Done!").green())
 
     @staticmethod
-    def startup_remove():
-        print('Removing from Startup...')
-        startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"
-                                          "\\Startup\\Lab Helper.cmd")
+    def startup_remove(silent=False):
+        if not silent:
+            print('Removing from Startup...')
+        startup_file = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                          "Start Menu\\Programs\\Startup\\Lab Helper.cmd")
+        startup_file_local = os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                                "Start Menu\\Programs\\Startup\\Lab Helper.cmd")
         try:
             os.remove(startup_file)
-            print(Message("Removed.").green())
+            if not silent:
+                print(Message("Removed.").green())
         except FileNotFoundError:
-            print('File not found!')
+            try:
+                os.remove(startup_file_local)
+            except FileNotFoundError:
+                if not silent:
+                    print('File not found!')
 
     def stop(self):
         self._stopping = True
-        observer.stop()
+        watch.stop_observe()
 
 
-class StatusCheck(object):
+class Watcher(Thread):
     """
-    This class contains and changes most of the state variables.
+    This class contains all observer functionality and checks and changes the state.
     """
     def __init__(self):
-        self.date = time.strftime("%b %Y", time.localtime())  # for checking when month changes
+        super().__init__()
+        self._stopping = False
+        self.obs = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
+        self.date = strftime("%b %Y", localtime())  # for checking when month changes
 
-        self.qiaxcel_path = config['File paths']['QIAxcel']
-        self.experiment_path = self.get_path("Experiments")  # Path to current month viia7
-        self.export_path = self.get_path("Export")
-        self.experiment_path_last = self.get_path("Experiments", last_month=True)  # Path to last month viia7
-        self.export_path_last = self.get_path("Export", last_month=True)
+        self.q_watch = self.experiment_curr = self.export_curr = self.experiment_last = self.export_last = None
+        self.set_watch()
 
-        self.qiaxcel_watch = observer.schedule(labhandler, path=self.qiaxcel_path)  # Schedule observer watch locations
-        self.experiment_watch_curr = observer.schedule(labhandler, path=self.experiment_path)
-        self.export_watch_curr = observer.schedule(labhandler, path=self.export_path)
-        self.experiment_watch_last = observer.schedule(labhandler, path=self.experiment_path_last) \
-            if self.experiment_path_last is not None else False
-        self.export_watch_last = observer.schedule(labhandler, path=self.export_path_last) \
-            if self.export_path_last is not None else False
+    def set_watch(self):
+        # Schedule observer watch locations
+        self.q_watch = self.obs.schedule(labhandler, path=config['File paths']['QIAxcel'])
+        self.experiment_curr = self.obs.schedule(labhandler, path=self.get_path("Experiments"))
+        self.export_curr = self.obs.schedule(labhandler, path=self.get_path("Export"))
 
-        self.message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
+        experiment_path_last = self.get_path("Experiments", last_month=True)
+        export_path_last = self.get_path("Export", last_month=True)
+        self.experiment_last = self.obs.schedule(labhandler, path=experiment_path_last) \
+            if experiment_path_last is not None else False
+        self.export_last = self.obs.schedule(labhandler, path=export_path_last) \
+            if export_path_last is not None else False
+
+    def status(self):
+        print('Observer Running') if self.obs.is_alive() else print('Observer Stopped')
+
+    def run(self):
+        global local
+        self.start_observe()
+        while not self._stopping:  # Check if something has changed
+            if local:
+                self.check_update_local()
+            if self.date != strftime("%b %Y", localtime()):  # If month has changed.
+                self.update_month()
+            for n in range(600):  # a 10 minute loop
+                if n % 30 == 0:  # every 30 seconds
+                    self.check_update()
+                if self._stopping:
+                    break
+                sleep(1)
 
     def update_month(self):
         """
         Called when the month has changed. Updates which folders are being watched for file changes.
         """
-        self.date = time.strftime("%b %Y", time.localtime())  # Update month
+        self.date = strftime("%b %Y", localtime())  # Update month
         print('The month has changed to ' + self.date)
-        self.experiment_path = self.get_path("Experiments")  # Get new path
-        self.export_path = self.get_path("Export")
-        if self.experiment_watch_last:
-            observer.unschedule(self.experiment_watch_last)  # Unschedule last month watch
-        if self.export_watch_last:
-            observer.unschedule(self.export_watch_last)
-        self.experiment_watch_last = self.experiment_watch_curr  # Make current month watch last month
-        self.export_watch_last = self.export_watch_curr
-        self.experiment_watch_curr = observer.schedule(labhandler, self.experiment_path)  # Schedule new current month
-        self.export_watch_curr = observer.schedule(labhandler, self.export_path)
+
+        if self.experiment_last:
+            self.obs.unschedule(self.experiment_last)  # Unschedule last month watch
+        if self.export_last:
+            self.obs.unschedule(self.export_last)
+        self.experiment_last = self.experiment_curr  # Make current month watch last month
+        self.export_last = self.export_curr
+        self.experiment_curr = self.obs.schedule(labhandler, self.get_path("Experiments"))  # Schedule new current month
+        self.export_curr = self.obs.schedule(labhandler, self.get_path("Export"))
 
     @staticmethod
     def check_update():
@@ -574,14 +634,25 @@ class StatusCheck(object):
         in the config.ini. This is possible and necessary because this program is normally run from
         an exe on a network share, therefore cannot update if it is in use.
         """
-        config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # may have changed.
+        if os.path.isfile(os.getcwd() + '/config.ini'):  # may have changed.
+            config.read(os.getcwd() + '/config.ini')
+        else:
+            config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
+
         start = datetime.strptime(config['Update']['Start'], '%d.%m.%Y %H:%M')
         end = datetime.strptime(config['Update']['End'], '%d.%m.%Y %H:%M')
         if start < datetime.now() < end:
             print('Update in progress until ' + datetime.strftime(end, "%d.%m.%y %H:%M "))
             print('Closing in 10 seconds...')
-            time.sleep(10)
+            sleep(10)
             raise KeyboardInterrupt
+
+    @staticmethod
+    def check_update_local():
+        master = configparser.ConfigParser()
+        master.read(config['File paths']['master'] + '/config.ini')
+        if not master['Update']['Version'] == __version__:
+            print('Please update to the latest version of the program!')
 
     def get_path(self, folder, last_month=False):
         """
@@ -629,6 +700,56 @@ class StatusCheck(object):
         if folder == "Export":
             return config['File paths']['Genotyping'] + 'qPCR ' + year + '\\Results Export\\' + month + ' ' + year
 
+    def start_observe(self):
+        self.obs.start()
+
+    def stop_observe(self):
+        self._stopping = True
+        self.obs.unschedule_all()
+        self.obs.stop()
+        sleep(1)
+        self.status()
+
+    def restart_observers(self):
+        self.obs.unschedule_all()
+        self.obs.stop()
+        sleep(2)
+        self.status()
+
+        self.obs = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
+        self.set_watch()
+        self.obs.start()
+        self.status()
+
+
+class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
+    """
+    This class is used to catch an un-catchable exception in watchdog
+    that would occur when the connection to the network drive was
+    temporarily lost
+    This can still sometimes cause a crash if the program is run from
+    the network drive, but this is to do with the build method of the
+    exe. A single exe build may fix but antivirus prevents it.
+    Currently recommend installing to a local drive C:// - not U://
+    """
+    message = deque(maxlen=2)  # This is used by thread_print to prevent duplicate messages from threads.
+
+    def queue_events(self, timeout):  # Subclass queue events - this is where the exception occurs
+        try:
+            super().queue_events(timeout)
+        except OSError as e:    # Catch the exception and print error
+            self.thread_print(str(e))
+            self.thread_print('Lost connection to team drive!')
+            connected = False
+            while not connected:  # resume when connection to network drive is restored
+                try:
+                    self.on_thread_start()  # need to re-set the directory handle.
+                    connected = True
+                    self.thread_print('Reconnected!')
+                except OSError:
+                    sleep(10)
+                    self.thread_print('Reconnecting...')
+
     def thread_print(self, msg):
         """
         Prevents duplicate print statements from threads. If it has been sent recently, it is not re sent.
@@ -639,57 +760,42 @@ class StatusCheck(object):
             self.message.append(msg)
 
 
-class MyEmitter(observers.read_directory_changes.WindowsApiEmitter):
-    """
-    This class is used to catch an uncatchable exception in watchdog
-    that would occur when the connection to the network drive was
-    temporarily lost
-    """
-    def queue_events(self, timeout):  # Subclass queue events - this is where the exception occurs
-        try:
-            super().queue_events(timeout)
-        except OSError as e:    # Catch the exception and print error
-            status.thread_print(str(e))
-            status.thread_print('Lost connection to team drive!')
-            connected = False
-            while not connected:  # resume when connection to network drive is restored
-                try:
-                    self.on_thread_start()  # need to re-set the directory handle.
-                    connected = True
-                    status.thread_print('Reconnected!')
-                except OSError:
-                    time.sleep(10)
-                    status.thread_print('Reconnecting...')
-
-
 if __name__ == '__main__':
     colorama_init()  # Init colorama to enable coloured text output via ANSI escape codes on windows console.
     q_lock = Lock()  # Locks used when reading or writing q_cnt or v_cnt since they are in multiple threads.
     v_lock = Lock()
     config = configparser.ConfigParser()
-    config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))  # config.ini = ANSI
+    if os.path.isfile(os.getcwd() + '/config.ini'):
+        config.read(os.getcwd() + '/config.ini')  # config.ini = ANSI
+    else:
+        config.read(os.path.normpath(os.path.dirname(argv[0]) + '/config.ini'))
+
+    local = True if win32file.GetDriveType(os.getcwd().split(':')[0] + ':') == 3 else False
+    if not local:
+        print('You may wish to install this program to your computer to prevent possible crashes')
+    else:  # if we are running locally and a startup entry exists for the remote version, we should
+        # replace it with the local version.
+        if os.path.isfile(os.path.expanduser("~\\AppData\\Roaming\\Microsoft\\Windows\\"
+                                             "Start Menu\\Programs\\Startup\\Lab Helper.cmd")):
+            InputLoop.startup(silent=True)
 
     egel_watcher = ClipboardWatcher()  # Instantiate classes
     labhandler = LabHandler()
     export = Export.Export()
-    observer = BaseObserver(emitter_class=MyEmitter, timeout=DEFAULT_OBSERVER_TIMEOUT)
-    in_loop = InputLoop()
-    status = StatusCheck()
 
-    observer.start()  # Start threads
+    watch = Watcher()
+    in_loop = InputLoop()
+    watch.start()  # Start threads
     egel_watcher.start()
     in_loop.start()
 
     try:
         while True:  # Check if something has changed
-            if status.date != time.strftime("%b %Y", time.localtime()):  # If month has changed.
-                status.update_month()
             for i in range(300):
-                if not observer.is_alive():
+                if not watch.is_alive():
                     raise KeyboardInterrupt
-                status.check_update()
-                time.sleep(4)
+                sleep(4)
     except KeyboardInterrupt:  # on keyboard interrupt (Ctrl + C)
-        observer.stop()  # Stop observer + Threads (if alive)
+        watch.obs.stop()  # Stop observer + Threads (if alive)
         egel_watcher.stop()
         print('\nbye!')
