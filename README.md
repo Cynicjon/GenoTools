@@ -1,5 +1,5 @@
 # GenoTools
-###### ver 18.07.2019
+###### ver 14.08.2019
 
 Tools to help the Genotyping Team at Sanger.
 
