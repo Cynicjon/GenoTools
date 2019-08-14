@@ -3,7 +3,8 @@ import os
 
 base = None
 
-executables = [Executable("Monitor.py", base=base)]
+executables = [Executable("Monitor.py", base=base,
+                          icon='mouse-icon.ico')]
 
 packages = ["idna", "os", "time", "datetime", "watchdog", "ctypes", "collections", "threading",
             "colorama", "argh", "pathtools", "sys", "pandas", "numpy", "openpyxl", "PIL"]
@@ -12,7 +13,7 @@ options = {
         'packages': packages,
         "include_msvcr": True,
         "include_files": ['config.ini', 'assays.txt', 'Formulas.xlsx'],
-        'excludes': ['tkinter']
+        'excludes': ['tkinter'],
                   },
           }
 
