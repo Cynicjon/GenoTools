@@ -134,3 +134,9 @@ Changelog for LabHelper project
     Can be run from any cwd
     Installing to startup now works properly regardless of cwd.
 
+14.08.2019
+    Final polish pass.
+    Made prints use Message() where possible, standardised alignment.
+    Improved look of export prints
+    Added icon
+

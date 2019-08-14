@@ -230,8 +230,8 @@ class Export(object):
             print(Message('Multi Export complete: ' + os.path.split(self.xlsx_file)[1]).timestamp())
             self._last_file = self.xlsx_file
             self.xlsx_file = None
-        return Message('Multi export processing ON') if self._multi_export \
-            else Message('Multi export processing OFF')  # + Message('OFF').red()
+        return Message(''.ljust(25, ' ') + 'Multi export processing ON') if self._multi_export \
+            else Message(''.ljust(25, ' ') + 'Multi export processing OFF')
 
     @multi.setter
     def multi(self, value):
@@ -252,12 +252,12 @@ class Export(object):
 
     def last_file(self):
         self.xlsx_file = self._last_file
-        print("Exporting to last exported file.")
+        print(''.ljust(25, ' ') + "Exporting to last exported file.")
 
     def to_file(self):
         # Allows Input of a specific xlsx file to export to.
         from Monitor import InputLoop
-        print('Enter a target file (.xlsx) or type stop to cancel')
+        print(''.ljust(25, ' ') + 'Enter a target file (.xlsx) or type stop to cancel')
         while True:
             inp = InputLoop.get_input()
             if os.path.isfile(inp) and inp[-5:] == '.xlsx':
@@ -269,7 +269,7 @@ class Export(object):
             else:
                 print(Message('That isn\'t an excel file path!').red())
         if self.xlsx_file:
-            print('Thanks. You can now export your files, or paste the file path here.')
+            print(''.ljust(25, ' ') + 'Thanks. You can now export your files, or paste the file path here.')
 
     def get_sheet_name(self):
         """Parses the file name and shortens it to <32 chars so it can be used as the sheet name in excel."""
@@ -357,9 +357,9 @@ class Export(object):
         wb.active = ws
         writer.save()  # Save xlsx.
         if self._multi_export:
-            print(Message('Sheet added: ' + sheet).timestamp())
+            print(Message(' Added sheet ' + sheet).timestamp(machine='Export'))
         else:
-            print(Message("Export complete: " + os.path.split(self.xlsx_file)[1]).timestamp())
+            print(Message(' ' + os.path.split(self.xlsx_file)[1]).timestamp(machine='Export'))
             self._last_file = self.xlsx_file
             os.startfile(self.xlsx_file)
             self.xlsx_file = None

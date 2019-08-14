@@ -22,8 +22,7 @@ import PIL  # required by openpyxl to allow handling of xlsx files with images i
 
 import Export
 
-__version__ = '13.08.2019'
-# TODO fix Message spacing.
+__version__ = '14.08.2019'
 
 
 class Counter(object):
@@ -47,7 +46,7 @@ class Counter(object):
 
     @property
     def show(self):
-        return ''.ljust(19, ' ') + self._machine + (' Displaying' if self._show else ' Hiding') + ' events'
+        return Message(''.ljust(25, ' ') + self._machine + (' Displaying' if self._show else ' Hiding') + ' events')
 
     @show.setter
     def show(self, value):
@@ -58,11 +57,12 @@ class Counter(object):
     def notify_setting(self):
         """return the current Notify setting"""
         if 0 < self.count < 10:
-            return ''.ljust(19, ' ') + self._machine + ' Notifying in ' + str(self.count) + ' runs time'
+            return ''.ljust(25, ' ') + self._machine + ' Notifying in ' + Message(str(self.count)).white() \
+                   + ' runs time'
         if self.count > 9:
-            return ''.ljust(19, ' ') + self._machine + ' Notifying for all runs'
+            return ''.ljust(25, ' ') + self._machine + ' Notifying for ' + Message('ALL').white() + ' runs'
         elif self.count < 1:
-            return ''.ljust(19, ' ') + self._machine + ' Notify OFF'
+            return ''.ljust(25, ' ') + self._machine + ' Notify OFF'
 
 
 class Message(UserString):
@@ -139,13 +139,11 @@ class Message(UserString):
         :return: Message() : Highlighted message
         """
         # TODO could this make use of the __str__ method?
-        pad = 11  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
-        if machine:
-            pad += 9
-            if machine == 'Viia7':
-                machine = Message(machine).cyan()
-            else:
-                machine = Message(machine).magenta()
+        pad = 12  # The .ljust pad value- because colour is added as 0-width characters, this value changes.
+        if machine:  # None, Viia7, Qiaxcel or Export
+            if machine == 'Viia7' or machine == 'Qiaxcel':
+                pad += 9
+                machine = Message(machine)
 
         if distinguish:
             pad += 9
@@ -237,25 +235,25 @@ class LabHandler(events.PatternMatchingEventHandler):  # inheriting from watchdo
                 print(Message(message).timestamp(machine))
 
         if x_counter == 1:  # If this was the run to notify on, inform that notification is now off.
-            print(''.ljust(19, ' ') + machine + ' No longer notifying.')
+            print(''.ljust(25, ' ') + machine + ' No longer notifying.')
 
         return x_counter - 1  # Increment counter down
 
     def auto_export(self):
         self._auto_export = not self._auto_export
-        print(Message('Auto export processing ON')) if self._auto_export \
-            else print(Message('Auto export processing OFF'))
+        print(''.ljust(25, ' ') + Message('Auto export processing ON')) if self._auto_export \
+            else print(''.ljust(25, ' ') + Message('Auto export processing OFF'))
 
     def user_only(self):
         self._user_only = not self._user_only
-        print('Displaying ' + Message('YOUR').white() + ' events only') if self._user_only \
-            else print('Displaying ' + Message('ALL').white() + ' events')
+        print(''.ljust(25, ' ') + 'Displaying ' + Message('YOUR').white() + ' events only') if self._user_only \
+            else print(''.ljust(25, ' ') + 'Displaying ' + Message('ALL').white() + ' events')
 
     def show_all(self):
         self.v_counter.show = True
         self.q_counter.show = True
         self._user_only = False
-        print('Displaying ' + Message('ALL').white() + ' events')
+        print(''.ljust(25, ' ') + 'Displaying ' + Message('ALL').white() + ' events')
 
     @staticmethod
     def get_event_info(event):
@@ -293,7 +291,7 @@ class Egel(object):
         try:
             self.send_to_clipboard(self.crop(crop_type='standard'))
         except AttributeError:
-            print('There is no image loaded')
+            print(''.ljust(25, ' ') + 'There is no image loaded')
             pass
 
     def get_small(self):
@@ -301,14 +299,14 @@ class Egel(object):
         try:
             self.send_to_clipboard(self.crop(crop_type='scale'), self.crop(crop_type='small'))
         except AttributeError:
-            print('There is no image loaded')
+            print(''.ljust(25, ' ') + 'There is no image loaded')
             pass
 
     def get_scale(self):
         try:
             self.send_to_clipboard(self.crop(crop_type='scale'))
         except AttributeError:
-            print('There is no image loaded')
+            print(''.ljust(25, ' ') + 'There is no image loaded')
             pass
 
     def crop(self, crop_type='standard'):
@@ -383,10 +381,10 @@ class ClipboardWatcher(Thread):
         self._paused = not self._paused
         if self._paused:
             self._wait = 10
-            print(Message('Clipboard watcher OFF'))
+            print(Message(''.ljust(25, ' ') + 'Clipboard watcher OFF'))
         else:
             self._wait = 2.
-            print(Message('Clipboard watcher ON'))
+            print(Message(''.ljust(25, ' ') + 'Clipboard watcher ON'))
 
     def stop(self):
         self._stopping = True
@@ -417,7 +415,7 @@ class InputLoop(Thread):
             self.startup_remove: ['delete', 'uninstall'],
             self.stop: ['quit', 'exit', 'QQ', 'quti'],
             self.print_help: ['help', 'hlep'],
-            watch.restart_observers: ['restart']
+            watch.restart_observers: ['restart'],
         }
 
     def run(self):
@@ -456,7 +454,7 @@ class InputLoop(Thread):
                         continue
                     with q_lock:  # lock to make referencing variable shared between threads safe.
                         labhandler.q_counter.count = count
-                        print(labhandler.q_counter.notify_setting)
+                        print(Message(labhandler.q_counter.notify_setting))
                 if 'v' in inp:
                     if 'hide' in inp:
                         labhandler.v_counter.show = ''
@@ -464,7 +462,7 @@ class InputLoop(Thread):
                         continue
                     with v_lock:
                         labhandler.v_counter.count = count
-                        print(labhandler.v_counter.notify_setting)
+                        print(Message(labhandler.v_counter.notify_setting))
 
     @staticmethod
     def get_input():
@@ -482,7 +480,7 @@ class InputLoop(Thread):
     @staticmethod
     def print_help():
         help_dict = {
-            'GenoTools____v05.08.19____jb40': {
+            'GenoTools____v' + __version__ + '____jb40': {
                 Message('Monitors Qiaxcel and Viia7 and notifies when runs complete.\n'
                         '  Auto-processes Qiaxcel gel images and Viia7 export files.\n\n'
                         '   Files with your username will generate a notification.\n'
@@ -512,15 +510,6 @@ class InputLoop(Thread):
             print('\n' + Message(heading).white().center(68, '_') + '\n')
             for command in help_dict[heading]:
                 print(Message(' ' + command).white2().ljust(25, ' ') + Message(help_dict[heading][command]))
-
-    @staticmethod
-    def install_local():
-        # TODO finish this?
-        global local
-        if local:
-            print('Already installed locally!')
-        else:
-            pass
 
     @staticmethod
     def startup(silent=False):
