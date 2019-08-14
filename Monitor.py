@@ -339,7 +339,7 @@ class Egel(object):
             win32clipboard.SetClipboardData(win32clipboard.CF_DIB, item)
             win32clipboard.CloseClipboard()
             sleep(0.05)  # small wait for Office Clipboard.
-        print('Clipboard image processed.')
+        print(''.ljust(25, ' ') + 'Clipboard image processed.')
 
 
 class ClipboardWatcher(Thread):

@@ -227,7 +227,7 @@ class Export(object):
         """
         if not self._multi_export and self.xlsx_file:
             os.startfile(self.xlsx_file)  # Try/except shouldn't be needed here.
-            print(Message('Multi Export complete: ' + os.path.split(self.xlsx_file)[1]).timestamp())
+            print(Message(' ' + os.path.split(self.xlsx_file)[1]).timestamp('Export'))
             self._last_file = self.xlsx_file
             self.xlsx_file = None
         return Message(''.ljust(25, ' ') + 'Multi export processing ON') if self._multi_export \
