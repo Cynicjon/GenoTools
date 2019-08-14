@@ -124,3 +124,26 @@ Changelog for LabHelper project
 05.08.2019
     Commented many functions for future maintainers
     Moved list of users to config.ini
+    
+07.08.2019
+    renamed StatusCheck to Watcher and moved in observer related code.
+
+08.08.2019
+    added restart observer command to see if it fixes the win10 crash
+    Cleaned up imports, fixed crash and bug in Egel, simplified watcher.
+
+13.08.2019
+    Re-did method of determining program location. Can now run from command line.
+    Added Version and master path in config, __version__ to Monitor.
+    If running from remote drive display recommendation to install locally
+    If installed locally, check remote drive for update and periodically display reminder.
+
+    Can be run from any cwd
+    Installing to startup now works properly regardless of cwd.
+
+14.08.2019
+    Final polish pass.
+    Made prints use Message() where possible, standardised alignment.
+    Improved look of export prints
+    Added icon
+
