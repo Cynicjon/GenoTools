@@ -532,14 +532,14 @@ class InputLoop(Thread):
             f.write("cls\n")
             if '.py' in argv[0]:
                 if os.path.isfile(os.getcwd() + '/Monitor.py'):
-                    f.write("start /MIN python " + os.getcwd() + '/Monitor.py')
+                    f.write('start /MIN python "' + os.getcwd() + '/Monitor.py"')
                 else:
-                    f.write("start /MIN python" + argv[0])
+                    f.write('start /MIN python "' + argv[0] + '"')
             else:
                 if os.path.isfile(os.getcwd() + '/Monitor.py'):
-                    f.write("start /MIN " + os.getcwd() + '/Monitor.exe')
+                    f.write('start "Genotyping Tool" "' + os.getcwd() + '/Monitor.exe"')
                 else:
-                    f.write("start /MIN " + argv[0])
+                    f.write('start "Genotyping Tool" "' + argv[0] + '"')
         if not silent:
             print(Message("Done!").green())
 
